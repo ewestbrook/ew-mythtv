@@ -18,6 +18,7 @@ using namespace std;
 #include <QWidget>
 #include <QApplication>
 #include <QTimer>
+#include <QNetworkProxy>
 
 #include "previewgeneratorqueue.h"
 #include "mythconfig.h"
@@ -1301,6 +1302,18 @@ int main(int argc, char **argv)
     }
 
     gCoreContext->SetAppName(binname);
+
+
+    // Set http proxy for the application if specified in environment variable
+    QString var(getenv("http_proxy"));
+    QRegExp regex("(http://)?(.*):(\\d*)/?");
+    int pos = regex.indexIn(var);
+    if (pos > -1) {
+      QString host = regex.cap(2);
+      int port = regex.cap(3).toInt();
+      QNetworkProxy proxy(QNetworkProxy::HttpProxy, host, port);
+      QNetworkProxy::setApplicationProxy(proxy);
+    }
 
     for(int argpos = 1; argpos < a.argc(); ++argpos)
     {
