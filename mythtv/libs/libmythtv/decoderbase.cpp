@@ -28,8 +28,8 @@ DecoderBase::DecoderBase(MythPlayer *parent, const ProgramInfo &pginfo)
       current_aspect(1.33333), fps(29.97),
       bitrate(4000),
 
-      framesPlayed(0), framesRead(0), lastKey(0), keyframedist(-1),
-      indexOffset(0),
+      framesPlayed(0), framesRead(0), totalDuration(0),
+      lastKey(0), keyframedist(-1), indexOffset(0),
 
       ateof(false), exitafterdecoded(false), transcoding(false),
 
@@ -74,6 +74,7 @@ void DecoderBase::Reset(void)
     ResetPosMap();
     framesPlayed = 0;
     framesRead = 0;
+    totalDuration = 0;
     dontSyncPositionMap = false;
 
     waitingForChange = false;
@@ -804,6 +805,7 @@ void DecoderBase::FileChanged(void)
     ResetPosMap();
     framesPlayed = 0;
     framesRead = 0;
+    totalDuration = 0;
 
     waitingForChange = false;
     justAfterChange = true;
@@ -1167,6 +1169,14 @@ int to_track_type(const QString &str)
     else if (str.left(7) == "RAWTEXT")
         ret = kTrackTypeRawText;
     return ret;
+}
+
+void DecoderBase::SaveTotalDuration(void)
+{
+    if (!m_playbackinfo || !totalDuration)
+        return;
+
+    m_playbackinfo->SaveTotalDuration(totalDuration);
 }
 
 /* vim: set expandtab tabstop=4 shiftwidth=4: */

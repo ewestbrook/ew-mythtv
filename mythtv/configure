@@ -119,16 +119,10 @@ Advanced options (experts only):
   --x11-path=X11LOC        location of X11 include files [$x11_path_default]
   --disable-xrandr         disable X11 resolution switching
   --disable-xv             disable XVideo   (X11 video output accel.)
-  --disable-xvmc           disable XvMC     (Linux/BSD MPEG accel.)
-  --disable-xvmcw          disable XvMC Wrapper
-                           (use --xvmc-lib if autodetection fails)
-  --enable-xvmc-vld        enable XvMC VLD accel. for the Unichrome (Pro) chipset
-  --xvmc-lib=LIB           XvMC library override (for crosscompiling)
   --enable-vdpau           enable NVidia VDPAU hardware acceleration.
   --enable-crystalhd       enable Broadcom CrystalHD hardware decoder support
   --disable-opengl-video   disable OpenGL based video display
   --disable-quartz-video   disable Mac OS X CoreVideo based video display
-  --disable-opengl-vsync   disable OpenGL vsync method
   --disable-directfb       disable DirectFB (Linux non-X11 video)
 
   --enable-mac-bundle      produce standalone OS X apps (e.g. mythfrontend.app)
@@ -761,7 +755,7 @@ check_ld(){
         test "${f}" = "${f#-l}" && flags="$flags $f" || libs="$libs $f"
     done
     check_cc $($filter_cflags $flags) || return
-    check_cmd $ld $LDFLAGS $flags -o $TMPE $TMPO $extralibs $libs
+    check_cmd $ld $LDFLAGS $flags -o $TMPE $TMPO $libs $extralibs
 }
 
 check_cppflags(){
@@ -1334,7 +1328,6 @@ MYTHTV_CONFIG_LIST='
     lirc
     mheg
     opengl_video
-    opengl_vsync
     qtdbus
     qtwebkit
     quartz_video
@@ -1343,9 +1336,6 @@ MYTHTV_CONFIG_LIST='
     x11
     xrandr
     xv
-    xvmc
-    xvmc_vld
-    xvmcw
 '
 
 MYTHTV_HAVE_LIST='
@@ -1382,6 +1372,7 @@ USING_LIST='
     darwin_da
     mythtranscode
     opengl
+    opengles
     vdpau
 '
 
@@ -1557,9 +1548,6 @@ mpeg2_dxva2_hwaccel_select="dxva2 mpeg2video_decoder"
 mpeg2_vaapi_hwaccel_select="vaapi mpeg2video_decoder"
 mpeg4_vaapi_hwaccel_select="vaapi mpeg4_decoder"
 mpeg4_vdpau_decoder_select="vdpau mpeg4_decoder"
-mpeg_xvmc_decoder_deps="X11_extensions_XvMClib_h"
-mpeg_xvmc_decoder_select="mpegvideo_decoder"
-mpeg_xvmc_vld_decoder_deps="xvmc_vld"
 msmpeg4v1_decoder_select="h263_decoder"
 msmpeg4v1_encoder_select="h263_encoder"
 msmpeg4v2_decoder_select="h263_decoder"
@@ -1737,16 +1725,13 @@ hdpvr_deps="backend v4l"
 hdhomerun_deps="backend"
 mpegtsraw_demuxer_deps="merge_libavformat_mpegts_c"
 mythtranscode_deps="backend frontend"
-opengl_deps_any="agl_h GL_gl_h darwin windows x11"
+opengl_deps_any="agl_h GL_gl_h GLES2_gl2_h darwin windows x11"
+opengles_deps="GLES2_gl2_h"
 opengl_video_deps="opengl"
-opengl_vsync_deps="opengl"
 v4l_deps="backend linux_videodev_h linux_videodev2_h"
 vdpau_deps="opengl vdpau_vdpau_h vdpau_vdpau_x11_h"
 xrandr_deps="x11"
 xv_deps="x11"
-xvmc_deps="xv X11_extensions_XvMClib_h"
-xvmc_vld_deps="xvmc X11_extensions_vldXvMC_h"
-xvmcw_deps="xvmc"
 
 <<BLOCKQUOTE
 # tests
@@ -1958,7 +1943,7 @@ enable lirc
 enable mheg
 enable mythtranscode
 enable opengl
-enable opengl_vsync
+enable opengles
 enable opengl_video
 enable quartz_video
 enable symbol_visibility
@@ -1966,15 +1951,11 @@ enable v4l
 enable x11
 enable xrandr
 enable xv
-enable xvmc
-enable xvmc_vld
-enable xvmcw
 
 # mythtv paths
 dvb_path_default="${sysroot}/usr/include"
 x11_path_default="${sysroot}/usr/X11R6/include"
 libxml2_path_default="${sysroot}/usr/include/libxml2"
-xvmc_lib=""
 
 # configurable options
 enable avcodec
@@ -2142,11 +2123,6 @@ for opt do
     --disable-ccache) disable ccache
     ;;
     --disable-distcc) disable distcc
-    ;;
-    --xvmc-lib=*) xvmc_lib=$optval
-    ;;
-    --*able-xvmc-pro)
-    echo "$opt is deprecated. XvMC Pro is autodetected if xvmc-vld is enabled"
     ;;
     --enable-quartz-video) enable quartz_video
     ;;
@@ -3097,7 +3073,6 @@ EOF
             disable mmx
             enable disable_mmx_for_debugging   # prevent later call to die
         fi
-        disable opengl_vsync
         disable v4l
         disable x11
         # Workaround compile errors from missing gmtime_r/localtime_r/uint def
@@ -3609,7 +3584,6 @@ check_header sys/select.h
 check_header termios.h
 check_header vdpau/vdpau.h
 check_header vdpau/vdpau_x11.h
-check_header X11/extensions/XvMClib.h
 
 check_struct dxva2api.h DXVA_PictureParameters wDecodedPictureIndex
 
@@ -4054,47 +4028,9 @@ if enabled x11; then
 fi
 
 if enabled x11; then
-    check_libx gl_lib GL/gl.h glBegin -lGL || check_libx gl_lib GL/gl.h glBegin -lopengl32 || disable opengl
+    check_libx gl_lib GLES2/gl2.h glClear -lGLESv2 || check_libx gl_lib GL/gl.h glBegin -lGL || check_libx gl_lib GL/gl.h glBegin -lopengl32 || disable opengl
     check_libx glu_lib GL/glu.h gluBeginSurface -lGLU || disable opengl
 fi
-
-VENDOR_XVMC_LIBS=""
-
-check_xvmc_lib(){
-    log check_xvmc_lib "$@"
-    headers=$1
-    func=$2
-    shift 2
-    check_libx VENDOR_XVMC_LIBS "$headers" $func "$@"
-}
-
-if test -n "$xvmc_lib"; then
-    check_xvmc_lib "X11/Xlib.h X11/extensions/XvMClib.h" XvMCQueryExtension "-l${xvmc_lib}" && disable xvmcw || disable xvmc
-    check_xvmc_lib "X11/Xlib.h X11/extensions/vldXvMC.h" XvMCBeginSurface   "-l${xvmc_lib}" || disable xvmc_vld
-elif enabled xvmcw; then
-    check_xvmc_lib "X11/Xlib.h X11/extensions/XvMClib.h" XvMCQueryExtension "-lXvMCW"
-    check_xvmc_lib "X11/Xlib.h X11/extensions/XvMClib.h" XvMCQueryVersion   "-lXvMCW"
-    check_xvmc_lib "X11/Xlib.h X11/extensions/vldXvMC.h" XvMCBeginSurface   "-lXvMCW" || disable xvmc_vld
-    test -n "$VENDOR_XVMC_LIBS" || disable xvmcw
-elif enabled xvmc_vld; then
-    check_xvmc_lib "X11/Xlib.h X11/extensions/vldXvMC.h" XvMCBeginSurface -lchromeXvMCPro || \
-    check_xvmc_lib "X11/Xlib.h X11/extensions/vldXvMC.h" XvMCBeginSurface -lviaXvMCPro    || \
-    check_xvmc_lib "X11/Xlib.h X11/extensions/vldXvMC.h" XvMCBeginSurface -lchromeXvMC    || \
-    check_xvmc_lib "X11/Xlib.h X11/extensions/vldXvMC.h" XvMCBeginSurface -lviaXvMC       || \
-    disable xvmc_vld
-else
-    check_xvmc_lib "X11/Xlib.h X11/extensions/XvMClib.h" XvMCQueryExtension "-lXvMCNVIDIA" || \
-    check_xvmc_lib "X11/Xlib.h X11/extensions/XvMClib.h" XvMCQueryExtension "-lIntelXvMC"  || \
-    check_xvmc_lib "X11/Xlib.h X11/extensions/XvMClib.h" XvMCQueryExtension "-lI810XvMC"
-fi
-
-if test -z "$VENDOR_XVMC_LIBS"; then
-    disable xvmc xvmcw xvmc_vld
-elif test x"$VENDOR_XVMC_LIBS" = x"-lXvMCNVIDIA" ; then
-    disable xvmc_vld
-fi
-
-enabled xvmc && add_extralibs "$VENDOR_XVMC_LIBS -lXvMC"
 
 # Quartz video is Mac only and requires Carbon which is 32bit only
 enabled quartz_video && test $target_os = darwin && check_cpp_condition QtCore/qglobal.h "!defined(QT_MAC_USE_COCOA)" || disable quartz_video
@@ -4193,12 +4129,12 @@ fi
 
 if enabled gxx; then
     if enabled symbol_visibility; then
-        if expr "$gxx_version" : '^4' > /dev/null; then
+        if expr "$gxx_version" : '^4\.[2-9]' > /dev/null; then
             check_cxxflags -fvisibility-inlines-hidden
             append CCONFIG "use_hidesyms"
         else
             disable symbol_visibility
-            warn "--enable-symbol-visibility requires gcc 4.x"
+            warn "--enable-symbol-visibility requires gcc 4.2 or higher"
         fi
     fi
     if expr "$gxx_version" : '^4\.[3-9]' > /dev/null; then
@@ -4261,6 +4197,10 @@ check_deps $CONFIG_LIST       \
            $MYTHTV_CONFIG_LIST \
            $MYTHTV_HAVE_LIST  \
            $USING_LIST        \
+
+# we no longer support xvmc
+disable mpeg_xvmc_decoder
+disable mpeg_xvmc_vld_decoder
 
 if enabled x86 && (disabled mmx && ! enabled disable_mmx_for_debugging); then
     die "ERROR: MMX disabled on x86, MythTV will be very slow.\n\tDisable this check with --enable-disable-mmx-for-debugging"
@@ -4468,11 +4408,6 @@ if enabled frontend; then
 if enabled x11 ; then
   echo "xrandr support            ${xrandr-no}"
   echo "xv support                ${xv-no}"
-  echo "XvMC support              ${xvmc-no}"
-  echo "XvMC VLD support          ${xvmc_vld-no}"
-if test "$VENDOR_XVMC_LIBS" != "" ; then
-  echo "XvMC libs                 $VENDOR_XVMC_LIBS"
-fi
   echo "VDPAU support             ${vdpau-no}"
   echo "CrystalHD support         ${crystalhd-no}"
 fi
@@ -4480,7 +4415,6 @@ fi
   if test x"$target_os" = x"darwin" ; then
     echo "Quartz video              ${quartz_video-no}"
   fi
-  echo "OpenGL vsync              ${opengl_vsync-no}"
   echo "DirectFB                  ${directfb-no}"
   if test x"$target_os" = x"mingw32" ; then
     echo "Windows (Direct3D)        yes"
@@ -4493,6 +4427,7 @@ echo "# Misc Features"
 echo "multi threaded libavcodec ${threads-no}"
 echo "Frontend                  ${frontend-no}"
 echo "Backend                   ${backend-no}"
+echo "OpenGL ES 2.0             ${opengles-no}"
 echo
 
 echo "# Bindings"
@@ -4823,6 +4758,7 @@ cat <<EOF >> $MYTH_CONFIG_MAK
 # Note: Qt uses QMAKE_INCDIR_QT to build an absolute path for include
 #       directories, it cannot be modified.
 QMAKE_LIBDIR_QT-=${sysroot}${libdir}
+QMAKE_LIBDIR-=${sysroot}${libdir}
 LATE_LIBS+=-L${sysroot}${libdir}
 EOF
 

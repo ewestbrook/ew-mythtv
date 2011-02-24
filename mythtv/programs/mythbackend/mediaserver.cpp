@@ -15,7 +15,6 @@
 #include "upnpcdstv.h"
 #include "upnpcdsmusic.h"
 #include "upnpcdsvideo.h"
-#include "upnpmedia.h"
 
 //////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////
@@ -60,7 +59,6 @@ MediaServer::MediaServer( bool bIsMaster, bool bDisableUPnp /* = FALSE */ )
     if (!m_pHttpServer->listen(QHostAddress::Any, nPort))
     {
         VERBOSE(VB_IMPORTANT, "MediaServer::HttpServer Create Error");
-        // exit(BACKEND_BUGGY_EXIT_NO_BIND_STATUS);
         delete m_pHttpServer;
         m_pHttpServer = NULL;
         return;
@@ -177,9 +175,6 @@ MediaServer::MediaServer( bool bIsMaster, bool bDisableUPnp /* = FALSE */ )
             VERBOSE(VB_UPNP, "MediaServer::Registering UPnpCDSVideo Extension");
 
             RegisterExtension(new UPnpCDSVideo());
-
-            upnpMedia = new UPnpMedia(true,true);
-            //upnpMedia->BuildMediaMap();
         }
 
         // VERBOSE(VB_UPNP, QString( "MediaServer::Adding Context Listener" ));

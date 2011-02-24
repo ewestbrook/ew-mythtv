@@ -16,6 +16,7 @@
 
 
 class MythUIWebBrowser;
+class MythScreenType;
 
 class BrowserApi : public QObject
 {
@@ -75,7 +76,7 @@ class MythWebView : public QWebView
  *
  * \ingroup MythUI_Widgets
  */
-class MPUBLIC MythUIWebBrowser : public MythUIType
+class MUI_PUBLIC MythUIWebBrowser : public MythUIType
 {
   Q_OBJECT
 
@@ -135,6 +136,7 @@ class MPUBLIC MythUIWebBrowser : public MythUIType
     void slotStatusBarMessage(const QString &text);
     void slotIconChanged(void);
     void slotLinkClicked(const QUrl &url);
+    void slotTopScreenChanged(MythScreenType *screen);
 
   protected:
     void Finalize(void);
@@ -149,6 +151,8 @@ class MPUBLIC MythUIWebBrowser : public MythUIType
         const QString &filename, QDomElement &element, bool showWarnings);
     virtual void CopyFrom(MythUIType *base);
     virtual void CreateCopy(MythUIType *parent);
+
+    MythScreenType *m_parentScreen;
 
     MythWebView *m_browser;
 

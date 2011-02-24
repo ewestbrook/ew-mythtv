@@ -273,15 +273,18 @@ void BDRingBuffer::ProgressUpdate(void)
 
 bool BDRingBuffer::OpenFile(const QString &lfilename, uint retry_ms)
 {
+    filename = lfilename;
+
     VERBOSE(VB_IMPORTANT, LOC + QString("Opened BDRingBuffer device at %1")
-            .arg(lfilename.toLatin1().data()));
+            .arg(filename.toLatin1().data()));
 
     // Ask mythiowrapper to update this object on file open progress. Opening
     // a bluray disc can involve opening several hundred files which can take
     // several minutes when the disc structure is remote. The callback allows
     // us to 'kick' the main UI - as the 'please wait' widget is still visible
     // at this stage
-    mythfile_open_register_callback(this, file_opened_callback);
+    mythfile_open_register_callback(filename.toLatin1().data(), this,
+                                    file_opened_callback);
 
     QMutexLocker locker(&m_infoLock);
     rwlock.lockForWrite();
@@ -289,18 +292,16 @@ bool BDRingBuffer::OpenFile(const QString &lfilename, uint retry_ms)
     if (bdnav)
         close();
 
-    filename = lfilename;
-
     QString keyfile = QString("%1/KEYDB.cfg").arg(GetConfDir());
     QByteArray keyarray = keyfile.toAscii();
     const char *keyfilepath = keyarray.data();
 
-    bdnav = bd_open(lfilename.toLatin1().data(), keyfilepath);
+    bdnav = bd_open(filename.toLatin1().data(), keyfilepath);
 
     if (!bdnav)
     {
         rwlock.unlock();
-        mythfile_open_register_callback(this, NULL);
+        mythfile_open_register_callback(filename.toLatin1().data(), this, NULL);
         return false;
     }
 
@@ -423,9 +424,6 @@ bool BDRingBuffer::OpenFile(const QString &lfilename, uint retry_ms)
         VERBOSE(VB_IMPORTANT, LOC + QString("Using HDMV navigation mode."));
         m_isHDMVNavigation = true;
 
-        // Initialize the HDMV event queue
-        HandleBDEvents();
-
         // Register the Menu Overlay Callback
         bd_register_overlay_proc(bdnav, this, HandleOverlayCallback);
     }
@@ -461,7 +459,7 @@ bool BDRingBuffer::OpenFile(const QString &lfilename, uint retry_ms)
 
     rwlock.unlock();
 
-    mythfile_open_register_callback(this, NULL);
+    mythfile_open_register_callback(filename.toLatin1().data(), this, NULL);
     return true;
 }
 

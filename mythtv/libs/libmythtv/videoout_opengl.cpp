@@ -232,7 +232,7 @@ bool VideoOutputOpenGL::SetupContext(void)
         return false;
     }
 
-    gl_context = new MythRenderOpenGL(fmt, device);
+    gl_context = MythRenderOpenGL::Create(fmt, device);
     if (gl_context && gl_context->create())
     {
         gl_context->Init();
@@ -318,7 +318,7 @@ void VideoOutputOpenGL::InitOSD(void)
 bool VideoOutputOpenGL::CreateBuffers(void)
 {
     QMutexLocker locker(&gl_context_lock);
-    vbuffers.Init(31, true, 1, 12, 4, 2, false);
+    vbuffers.Init(31, true, 1, 12, 4, 2);
     return vbuffers.CreateBuffers(FMT_YV12,
                                   window.GetVideoDim().width(),
                                   window.GetVideoDim().height());

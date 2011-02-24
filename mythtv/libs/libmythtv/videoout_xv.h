@@ -70,9 +70,9 @@ class VideoOutputXv : public VideoOutput
     void InitPictureAttributes(void);
 
     virtual bool IsPIPSupported(void) const
-        { return XVideo == VideoOutputSubType(); }
+        { return false; /*XVideo == VideoOutputSubType(); */}
     virtual bool IsPBPSupported(void) const
-        { return XVideo == VideoOutputSubType(); }
+        { return false; /*return XVideo == VideoOutputSubType(); */}
     virtual bool NeedExtraAudioDecode(void) const { return false; }
 
     virtual QRect GetPIPRect(PIPLocation  location,
@@ -96,7 +96,6 @@ class VideoOutputXv : public VideoOutput
 
   private:
     virtual bool hasFullScreenOSD(void) const { return chroma_osd; }
-    VideoFrame *GetNextFreeFrame(bool allow_unsafe);
     void DiscardFrame(VideoFrame*);
     void DiscardFrames(bool next_frame_keyframe);
 

@@ -1,5 +1,7 @@
-using namespace std;
 #define _WIN32_WINNT 0x500
+
+#include <algorithm> 
+using std::min; 
 
 #include <QRect>
 #include <QMap>
@@ -871,8 +873,8 @@ bool MythRenderD3D9::UpdateVertexBuffer(IDirect3DVertexBuffer9* vertexbuffer,
     int height = dst.height();
     if (!video)
     {
-        width  = std::min(src.width(),  width);
-        height = std::min(src.height(), height);
+        width  = min(src.width(),  width);
+        height = min(src.height(), height);
     }
     QRect dest(dst.left(), dst.top(), width, height);
 

@@ -3,7 +3,7 @@
  * \author Paul Harrison <mythtv@dsl.pipex.com>
  * \brief Provide a web browser widget.
  *
- * This requires qt4.4.0 or later to function properly.
+ * This requires qt4.5.0 or later to function properly.
  *
  */
 
@@ -30,7 +30,7 @@
 #include "mythdirs.h"
 #include "mythuihelper.h"
 #include "mythcorecontext.h"
-
+#include "mythscreentype.h"
 
 /**
  * @class BrowserApi
@@ -428,6 +428,30 @@ void MythUIWebBrowser::Init(void)
     connect(this, SIGNAL(LosingFocus()),
             this, SLOT(slotLosingFocus(void)));
 
+    // find what screen we are on
+    m_parentScreen = NULL;
+    QObject *parentObject = parent();
+    while(parentObject)
+    {
+        m_parentScreen = dynamic_cast<MythScreenType *>(parentObject);
+        if (m_parentScreen)
+            break;
+
+        parentObject = parentObject->parent();
+    }
+
+    if (!m_parentScreen)
+        VERBOSE(VB_IMPORTANT, "MythUIWebBrowser: failed to find our parent screen");
+
+    // connect to the topScreenChanged signals on each screen stack
+    for (int x = 0; x < GetMythMainWindow()->GetStackCount(); x++)
+    {
+        MythScreenStack *stack = GetMythMainWindow()->GetStackAt(x);
+        if (stack)
+            connect(stack, SIGNAL(topScreenChanged(MythScreenType *)),
+                    this, SLOT(slotTopScreenChanged(MythScreenType *)));
+    }
+
     // set up the icon cache directory
     QString path = GetConfDir();
     QDir dir(path);
@@ -609,11 +633,7 @@ void MythUIWebBrowser::SetZoom(float zoom)
         return;
 
     m_zoom = zoom;
-#if QT_VERSION >= 0x040500
     m_browser->setZoomFactor(m_zoom);
-#else
-    m_browser->setTextSizeMultiplier(m_zoom);
-#endif
     UpdateBuffer();
 }
 
@@ -770,6 +790,35 @@ void MythUIWebBrowser::slotLosingFocus(void)
     m_browser->hide();
 
     UpdateBuffer();
+}
+
+void MythUIWebBrowser::slotTopScreenChanged(MythScreenType* screen)
+{
+    (void) screen;
+
+    if (!m_parentScreen)
+        return;
+
+    // is our containing screen the top screen?
+    for (int x = GetMythMainWindow()->GetStackCount() - 1; x >= 0; x--)
+    {
+        MythScreenStack *stack = GetMythMainWindow()->GetStackAt(x);
+
+        // ignore stacks with no screens on them
+        if (!stack->GetTopScreen())
+            continue;
+
+        if (stack->GetTopScreen() == m_parentScreen)
+        {
+            SetActive(true);
+            break;
+        }
+        else
+        {
+            SetActive(false);
+            break;
+        }
+    }
 }
 
 void MythUIWebBrowser::UpdateBuffer(void)

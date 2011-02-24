@@ -2227,22 +2227,6 @@ static HostComboBox *MythTimeFormat()
     return gc;
 }
 
-static HostComboBox *ThemePainter()
-{
-    HostComboBox *gc = new HostComboBox("ThemePainter");
-    gc->setLabel(QObject::tr("Paint engine"));
-#ifdef USING_MINGW
-    gc->addSelection(QObject::tr("Direct3D"), "d3d9");
-#endif
-    gc->addSelection(QObject::tr("Qt"), "qt");
-#ifdef USING_OPENGL
-    gc->addSelection(QObject::tr("OpenGL"), "opengl");
-#endif
-    gc->setHelpText(QObject::tr("This selects what MythTV uses to draw. If "
-                    "you have decent hardware, select OpenGL."));
-    return gc;
-}
-
 static HostComboBox *ChannelFormat()
 {
     HostComboBox *gc = new HostComboBox("ChannelFormat");
@@ -2880,22 +2864,6 @@ class WatchListSettings : public TriggeredConfigurationGroup
     };
 };
 
-#ifdef USING_OPENGL_VSYNC
-/*
-static HostCheckBox *UseOpenGLVSync()
-{
-    HostCheckBox *gc = new HostCheckBox("UseOpenGLVSync");
-    gc->setLabel(QObject::tr("Enable OpenGL vertical sync for timing"));
-    gc->setValue(false);
-    gc->setHelpText(QObject::tr(
-                        "If supported by your hardware/drivers, "
-                        "MythTV will use OpenGL vertical syncing for "
-                        "video timing, reducing frame jitter."));
-    return gc;
-}
-*/
-#endif
-
 static HostCheckBox *LCDShowTime()
 {
     HostCheckBox *gc = new HostCheckBox("LCDShowTime");
@@ -3403,9 +3371,6 @@ PlaybackSettings::PlaybackSettings()
 
     general1->addChild(columns);
     general1->addChild(LiveTVIdleTimeout());
-#ifdef USING_OPENGL_VSYNC
-    //general1->addChild(UseOpenGLVSync());
-#endif // USING_OPENGL_VSYNC
     addChild(general1);
 
     VerticalConfigurationGroup* general2 =
@@ -3676,7 +3641,6 @@ AppearanceSettings::AppearanceSettings()
     VerticalConfigurationGroup* screen = new VerticalConfigurationGroup(false);
     screen->setLabel(QObject::tr("Theme") + " / " + QObject::tr("Screen Settings"));
 
-    screen->addChild(ThemePainter());
     screen->addChild(MenuTheme());
 
     if (MythDisplay::GetNumberXineramaScreens() > 1)
