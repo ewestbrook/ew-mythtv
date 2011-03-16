@@ -34,6 +34,8 @@ DEPENDPATH  += ../libmythlivemedia/liveMedia
 DEPENDPATH  += ../libmythlivemedia/UsageEnvironment/include
 DEPENDPATH  += ../libmythlivemedia/UsageEnvironment
 DEPENDPATH  += ../libmythbase ../libmythui
+DEPENDPATH  += ../libmythupnp
+
 
 INCLUDEPATH += .. ../.. # for avlib headers
 INCLUDEPATH += ../../external/FFmpeg
@@ -82,7 +84,12 @@ QMAKE_LFLAGS_SHLIB += $${FREETYPE_LIBS}
 
 macx {
     # Mac OS X Frameworks
-    FWKS = AGL ApplicationServices Carbon Cocoa CoreFoundation CoreVideo OpenGL QuickTime IOKit
+    FWKS = AGL ApplicationServices Carbon Cocoa CoreFoundation OpenGL QuickTime IOKit
+    using_quartz_video {
+        FWKS += QuartzCore
+    } else {
+        FWKS += CoreVideo
+    }
 
     using_firewire:using_backend: FWKS += IOKit
 
@@ -578,8 +585,13 @@ mingw {
     DEFINES += USING_MINGW
 
     HEADERS += videoout_d3d.h
+    HEADERS -= NuppelVideoRecorder.h
     SOURCES -= NuppelVideoRecorder.cpp
     SOURCES += videoout_d3d.cpp
+
+    using_dxva2: DEFINES += USING_DXVA2
+    using_dxva2: HEADERS += dxva2decoder.h
+    using_dxva2: SOURCES += dxva2decoder.cpp
 
     LIBS += -lws2_32
 }

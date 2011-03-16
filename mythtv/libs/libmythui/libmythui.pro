@@ -64,7 +64,7 @@ inc.files += mythuiprogressbar.h mythuiwebbrowser.h mythuiutils.h
 inc.files += x11colors.h mythgenerictree.h mythuibuttontree.h
 inc.files += mythvirtualkeyboard.h mythuishape.h mythuiguidegrid.h
 inc.files += mythuieditbar.h mythuifilebrowser.h mythuivideo.h
-inc.files += mythuiexp.h
+inc.files += mythuiexp.h mythuiactions.h
 
 INSTALLS += inc
 
@@ -133,6 +133,7 @@ mingw {
     DEFINES += USING_MINGW
     HEADERS += mythpainter_d3d9.h   mythrender_d3d9.h
     SOURCES += mythpainter_d3d9.cpp mythrender_d3d9.cpp
+    using_dxva2: DEFINES += USING_DXVA2
 }
 
 using_opengl {

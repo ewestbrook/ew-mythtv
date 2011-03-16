@@ -44,6 +44,7 @@ using namespace std;
 #include "dvdringbuffer.h"
 #include "scheduledrecording.h"
 #include "mythsystemevent.h"
+#include "hardwareprofile.h"
 
 #include "compat.h"  // For SIG* on MinGW
 #include "exitcodes.h"
@@ -926,6 +927,24 @@ static void getScreenShot(void)
     (void) GetMythMainWindow()->screenShot();
 }
 
+static void setDebugShowBorders(void)
+{
+    MythPainter *p = GetMythPainter();
+    p->SetDebugMode(!p->ShowBorders(), p->ShowTypeNames());
+
+    if (GetMythMainWindow()->GetMainStack()->GetTopScreen())
+        GetMythMainWindow()->GetMainStack()->GetTopScreen()->SetRedraw();
+}
+
+static void setDebugShowNames(void)
+{
+    MythPainter *p = GetMythPainter();
+    p->SetDebugMode(p->ShowBorders(), !p->ShowTypeNames());
+
+    if (GetMythMainWindow()->GetMainStack()->GetTopScreen())
+        GetMythMainWindow()->GetMainStack()->GetTopScreen()->SetRedraw();
+}
+
 static void InitJumpPoints(void)
 {
      REG_JUMP(QT_TRANSLATE_NOOP("MythControls", "Reload Theme"),
@@ -960,6 +979,11 @@ static void InitJumpPoints(void)
 
      REG_JUMPEX(QT_TRANSLATE_NOOP("MythControls", "ScreenShot"),
          "", "", getScreenShot, false);
+
+     REG_JUMPEX(QT_TRANSLATE_NOOP("MythControls", "Toggle Show Widget Borders"),
+         "", "", setDebugShowBorders, false);
+     REG_JUMPEX(QT_TRANSLATE_NOOP("MythControls", "Toggle Show Widget Names"),
+         "", "", setDebugShowNames, false);
 
     TV::InitKeys();
 
@@ -1082,6 +1106,7 @@ int main(int argc, char **argv)
         kCLPGetSettings          |
         kCLPQueryVersion         |
         kCLPVerbose              |
+        kCLPNoUPnP               |
 #ifdef USING_X11
         kCLPDisplay              |
 #endif // USING_X11
@@ -1118,6 +1143,8 @@ int main(int argc, char **argv)
 #endif
     QApplication a(argc, argv);
 
+    QCoreApplication::setApplicationName(MYTH_APPNAME_MYTHFRONTEND);
+
     QString pluginname;
 
     QFileInfo finfo(a.argv()[0]);
@@ -1125,7 +1152,7 @@ int main(int argc, char **argv)
     QString binname = finfo.baseName();
 
     VERBOSE(VB_IMPORTANT, QString("%1 version: %2 [%3] www.mythtv.org")
-                            .arg(binname)
+                            .arg(MYTH_APPNAME_MYTHFRONTEND)
                             .arg(MYTH_SOURCE_PATH)
                             .arg(MYTH_SOURCE_VERSION));
 
@@ -1186,7 +1213,7 @@ int main(int argc, char **argv)
         else
         {
             VERBOSE(VB_IMPORTANT, QString("%1 version: %2 [%3] www.mythtv.org")
-                                    .arg(binname)
+                                    .arg(MYTH_APPNAME_MYTHFRONTEND)
                                     .arg(MYTH_SOURCE_PATH)
                                     .arg(MYTH_SOURCE_VERSION));
 
@@ -1210,11 +1237,15 @@ int main(int argc, char **argv)
     CleanupGuard callCleanup(cleanup);
 
     gContext = new MythContext(MYTH_BINARY_VERSION);
-    g_pUPnp  = new MediaRenderer();
-    if (!g_pUPnp->initialized())
+
+    if (cmdline.IsUPnPEnabled())
     {
-        delete g_pUPnp;
-        g_pUPnp = NULL;
+        g_pUPnp  = new MediaRenderer();
+        if (!g_pUPnp->initialized())
+        {
+            delete g_pUPnp;
+            g_pUPnp = NULL;
+        }
     }
 
     // Override settings as early as possible to cover bootstrapped screens
@@ -1439,6 +1470,15 @@ int main(int argc, char **argv)
                     QString("NetworkControl failed to bind to port %1.")
                     .arg(networkPort));
     }
+
+#ifdef __linux__
+#ifdef CONFIG_BINDINGS_PYTHON
+    HardwareProfile *profile = new HardwareProfile();
+    if (profile && profile->NeedsUpdate())
+        profile->SubmitProfile();
+    delete profile;
+#endif
+#endif
 
     if (!RunMenu(themedir, themename) && !resetTheme(themedir, themename))
     {

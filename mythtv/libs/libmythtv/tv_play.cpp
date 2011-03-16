@@ -833,6 +833,7 @@ TV::TV(void)
       // Channel Editing
       chanEditMapLock(QMutex::Recursive),
       ddMapSourceId(0), ddMapLoaderRunning(false),
+      ddMapLoader(NULL),
       // Sleep Timer
       sleep_index(0), sleepTimerId(0), sleepDialogTimerId(0),
       // Idle Timer
@@ -1184,16 +1185,17 @@ TV::~TV(void)
         lcd->switchToTime();
     }
 
-    if (ddMapLoaderRunning)
+    if (ddMapLoader && ddMapLoader->isRunning())
     {
-        ddMapLoader.wait();
-        ddMapLoaderRunning = false;
+        ddMapLoader->wait();
+        delete ddMapLoader;
 
         if (ddMapSourceId)
         {
-            ddMapLoader.SetParent(NULL);
-            ddMapLoader.SetSourceId(ddMapSourceId);
-            ddMapLoader.start();
+            ddMapLoader = new TVDDMapThread;
+            ddMapLoader->SetParent(NULL);
+            ddMapLoader->SetSourceId(ddMapSourceId);
+            ddMapLoader->start();
         }
     }
 
@@ -2836,7 +2838,8 @@ void TV::PrepareToExitPlayer(PlayerContext *ctx, int line, bool bookmark) const
     ctx->LockDeletePlayer(__FILE__, line);
     if (ctx->player)
     {
-        if (bookmark_it && !(ctx->player->IsNearEnd()))
+        if (bookmark_it && (!(ctx->player->IsNearEnd()) ||
+                            StateIsRecording(GetState(ctx))))
             ctx->player->SetBookmark();
         if (db_auto_set_watched)
             ctx->player->SetWatched();
@@ -7066,13 +7069,13 @@ void TV::UpdateOSDSignal(const PlayerContext *ctx, const QStringList &strlist)
     QString lockMsg = (slock=="L") ? tr("Partial Lock") : tr("No Lock");
     QString sigMsg  = allGood ? tr("Lock") : lockMsg;
 
-    QString sigDesc = tr("Signal %1\%").arg(sig,2);
+    QString sigDesc = tr("Signal %1%").arg(sig,2);
     if (snr > 0.0f)
         sigDesc += " | " + tr("S/N %1dB").arg(log10f(snr), 3, 'f', 1);
     if (ber != 0xffffffff)
         sigDesc += " | " + tr("BE %1", "Bit Errors").arg(ber, 2);
     if ((pos >= 0) && (pos < 100))
-        sigDesc += " | " + tr("Rotor %1\%").arg(pos,2);
+        sigDesc += " | " + tr("Rotor %1%").arg(pos,2);
 
     if (tuned == 1)
         tuneCode = 't';
@@ -7571,7 +7574,7 @@ void TV::DoEditSchedule(int editType)
         }
     }
 
-    // If the video is paused, don't paint it's unused rects & chromakey
+    // If the video is paused, don't paint its unused rects & chromakey
     disableDrawUnusedRects = pause_active;
 
     // We are embedding in a mythui window so assuming no one
@@ -8547,7 +8550,7 @@ static PictureAttribute next(
                kPictureAttributeSupported_Hue);
     }
 
-    return next((PictureAttributeSupported)sup, attr);
+    return ::next((PictureAttributeSupported)sup, (PictureAttribute) attr);
 }
 
 void TV::DoToggleStudioLevels(const PlayerContext *ctx)
@@ -8938,10 +8941,10 @@ void TV::StartChannelEditMode(PlayerContext *ctx)
     ReturnOSDLock(ctx, osd);
 
     QMutexLocker locker(&chanEditMapLock);
-    if (ddMapLoaderRunning)
+    if (ddMapLoader && ddMapLoader->isRunning())
     {
-        ddMapLoader.wait();
-        ddMapLoaderRunning = false;
+        ddMapLoader->wait();
+        delete ddMapLoader;
     }
 
     // Get the info available from the backend
@@ -8966,10 +8969,10 @@ void TV::StartChannelEditMode(PlayerContext *ctx)
 
     if (sourceid && (sourceid != ddMapSourceId))
     {
-        ddMapLoader.SetParent(this);
-        ddMapLoader.SetSourceId(sourceid);
-        ddMapLoader.start();
-        ddMapLoaderRunning = ddMapLoader.isRunning();
+        ddMapLoader = new TVDDMapThread;
+        ddMapLoader->SetParent(this);
+        ddMapLoader->SetSourceId(sourceid);
+        ddMapLoader->start();
     }
 }
 
@@ -10579,7 +10582,7 @@ void TV::FillOSDMenuJumpRec(PlayerContext* ctx, const QString category,
 
         QMutexLocker locker(&progListsLock);
         progLists.clear();
-        vector<ProgramInfo*> *infoList = RemoteGetRecordedList(false);
+        vector<ProgramInfo*> *infoList = RemoteGetRecordedList(0);
         bool LiveTVInAllPrograms = gCoreContext->GetNumSetting("LiveTVInAllPrograms",0);
         if (infoList)
         {

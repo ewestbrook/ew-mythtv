@@ -45,13 +45,6 @@ const int  RingBuffer::kLiveTVOpenTimeout  = 10000;
 #define LOC_WARN QString("RingBuf(%1) Warning: ").arg(filename)
 #define LOC_ERR  QString("RingBuf(%1) Error: ").arg(filename)
 
-#define PNG_MIN_SIZE   20 /* header plus one empty chunk */
-#define NUV_MIN_SIZE  204 /* header size? */
-#define MPEG_MIN_SIZE 376 /* 2 TS packets */
-
-/* should be minimum of the above test sizes */
-const uint RingBuffer::kReadTestSize = PNG_MIN_SIZE;
-
 QMutex      RingBuffer::subExtLock;
 QStringList RingBuffer::subExt;
 QStringList RingBuffer::subExtNoCheck;
@@ -244,11 +237,22 @@ RingBuffer::~RingBuffer(void)
 {
     KillReadAheadThread();
 
+    rwlock.lockForWrite();
+
     if (readAheadBuffer) // this only runs if thread is terminated
     {
         delete [] readAheadBuffer;
         readAheadBuffer = NULL;
     }
+
+    if (tfw)
+    {
+        tfw->Flush();
+        delete tfw;
+        tfw = NULL;
+    }
+
+    rwlock.unlock();
 }
 
 /** \fn RingBuffer::Reset(bool, bool, bool)
@@ -1108,9 +1112,9 @@ int RingBuffer::ReadPriv(void *buf, int count, bool peek)
     {
         VERBOSE(VB_FILE, LOC + loc_desc + ": !WaitForReadsAllowed()");
         rwlock.unlock();
+        stopreads = true; // this needs to be outside the lock
         rwlock.lockForWrite();
         wanttoread = 0;
-        stopreads = true;
         rwlock.unlock();
         return 0;
     }
@@ -1119,10 +1123,10 @@ int RingBuffer::ReadPriv(void *buf, int count, bool peek)
     {
         VERBOSE(VB_FILE, LOC + loc_desc + ": !WaitForAvail()");
         rwlock.unlock();
+        stopreads = true; // this needs to be outside the lock
         rwlock.lockForWrite();
         ateof = true;
         wanttoread = 0;
-        stopreads = true;
         rwlock.unlock();
         return 0;
     }
