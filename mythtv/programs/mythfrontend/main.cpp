@@ -16,6 +16,7 @@ using namespace std;
 #include <QWidget>
 #include <QApplication>
 #include <QTimer>
+#include <QNetworkProxy>
 
 #include "previewgeneratorqueue.h"
 #include "mythconfig.h"
@@ -1501,8 +1502,57 @@ int main(int argc, char **argv)
             return GENERIC_EXIT_DB_ERROR;
     }
 
-    if (cmdline.toBool("reset"))
-        ResetSettings = true;
+    gCoreContext->SetAppName(binname);
+
+
+    // Set http proxy for the application if specified in environment variable
+    QString var(getenv("http_proxy"));
+    QRegExp regex("(http://)?(.*):(\\d*)/?");
+    int pos = regex.indexIn(var);
+    if (pos > -1) {
+      QString host = regex.cap(2);
+      int port = regex.cap(3).toInt();
+      QNetworkProxy proxy(QNetworkProxy::HttpProxy, host, port);
+      QNetworkProxy::setApplicationProxy(proxy);
+    }
+
+    for(int argpos = 1; argpos < a.argc(); ++argpos)
+    {
+        if (!strcmp(a.argv()[argpos],"-l") ||
+            !strcmp(a.argv()[argpos],"--logfile"))
+        {
+            // Arg processing for logfile already done (before MythContext)
+            ++argpos;
+        } else if (!strcmp(a.argv()[argpos],"-v") ||
+                   !strcmp(a.argv()[argpos],"--verbose"))
+        {
+            // Arg processing for verbose already done (before MythContext)
+            ++argpos;
+        }
+        else if (!strcmp(a.argv()[argpos],"-r") ||
+                 !strcmp(a.argv()[argpos],"--reset"))
+        {
+            ResetSettings = true;
+        }
+        else if (!strcmp(a.argv()[argpos],"--prompt") ||
+                 !strcmp(a.argv()[argpos],"-p" ))
+        {
+        }
+        else if (!strcmp(a.argv()[argpos],"--disable-autodiscovery") ||
+                 !strcmp(a.argv()[argpos],"-d" ))
+        {
+        }
+        else if (!strcmp(a.argv()[argpos],"--upgrade-schema") ||
+                 !strcmp(a.argv()[argpos],"-u" ))
+        {
+            upgradeAllowed = true;
+        }
+        else if (cmdline.Parse(a.argc(), a.argv(), argpos, cmdline_err))
+        {
+            if (cmdline_err)
+            {
+                return GENERIC_EXIT_INVALID_CMDLINE;
+            }
 
     if (cmdline.GetArgs().size() >= 1)
         pluginname = cmdline.GetArgs()[0];
