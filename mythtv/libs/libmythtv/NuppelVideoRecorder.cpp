@@ -22,7 +22,6 @@ using namespace std;
 
 #include "util.h"
 #include "mythcontext.h"
-#include "mythverbose.h"
 #include "NuppelVideoRecorder.h"
 #include "channelbase.h"
 #include "filtermanager.h"
@@ -67,7 +66,6 @@ extern "C" {
 #include "programinfo.h"
 
 #define LOC QString("NVR(%1): ").arg(videodevice)
-#define LOC_ERR QString("NVR(%1) Error: ").arg(videodevice)
 
 void NVRWriteThread::run(void)
 {
@@ -415,7 +413,8 @@ void NuppelVideoRecorder::SetOptionsFromProfile(RecordingProfile *profile,
     }
     else
     {
-        VERBOSE(VB_IMPORTANT, LOC + "Unknown video codec.  "
+        LOG(VB_GENERAL, LOG_ERR, LOC +
+                "Unknown video codec.  "
                 "Please go into the TV Settings, Recording Profiles and "
                 "setup the four 'Software Encoders' profiles.  "
                 "Assuming RTjpeg for now.");
@@ -444,7 +443,7 @@ void NuppelVideoRecorder::SetOptionsFromProfile(RecordingProfile *profile,
     }
     else
     {
-        VERBOSE(VB_IMPORTANT, LOC_ERR + "Unknown audio codec");
+        LOG(VB_GENERAL, LOG_ERR, LOC + "Unknown audio codec");
         SetOption("audiocompression", 0);
     }
 
@@ -522,7 +521,7 @@ bool NuppelVideoRecorder::SetupAVCodecVideo(void)
 
     if (!mpa_vidcodec)
     {
-        VERBOSE(VB_IMPORTANT, LOC_ERR + QString("Video Codec not found: %1")
+        LOG(VB_GENERAL, LOG_ERR, LOC + QString("Video Codec not found: %1")
                 .arg(vcodec.constData()));
         return false;
     }
@@ -542,8 +541,8 @@ bool NuppelVideoRecorder::SetupAVCodecVideo(void)
             mpa_picture.linesize[2] = w_out / 2;
             break;
         default:
-            VERBOSE(VB_IMPORTANT, LOC_ERR +
-                    QString("Unknown picture format: %1").arg(picture_format));
+            LOG(VB_GENERAL, LOG_ERR, LOC + QString("Unknown picture format: %1")
+                    .arg(picture_format));
     }
 
     mpa_vidctx->width = w_out;
@@ -613,8 +612,8 @@ bool NuppelVideoRecorder::SetupAVCodecVideo(void)
 
     if (avcodec_open(mpa_vidctx, mpa_vidcodec) < 0)
     {
-        VERBOSE(VB_IMPORTANT, LOC_ERR +
-                QString("Unable to open FFMPEG/%1 codec").arg(videocodec));
+        LOG(VB_GENERAL, LOG_ERR, LOC + QString("Unable to open FFMPEG/%1 codec")
+                .arg(videocodec));
         return false;
     }
 
@@ -694,7 +693,7 @@ void NuppelVideoRecorder::UpdateResolutions(void)
     if (frameRate && frameRate != m_frameRate)
     {
         m_frameRate = frameRate;
-        VERBOSE(VB_RECORD, QString("NVR: frame rate = %1")
+        LOG(VB_RECORD, LOG_INFO, LOC + QString("NVR: frame rate = %1")
                 .arg(frameRate));
         FrameRateChange(frameRate, 0);
     }
@@ -704,7 +703,7 @@ void NuppelVideoRecorder::Initialize(void)
 {
     if (AudioInit() != 0)
     {
-        VERBOSE(VB_IMPORTANT, LOC_ERR + "Failed to init audio input device");
+        LOG(VB_GENERAL, LOG_ERR, LOC + "Failed to init audio input device");
     }
 
     if (videocodec == "hardware-mjpeg")
@@ -738,13 +737,13 @@ void NuppelVideoRecorder::Initialize(void)
 
     if (!ringBuffer)
     {
-        VERBOSE(VB_IMPORTANT, LOC + "Warning, old RingBuffer creation");
+        LOG(VB_GENERAL, LOG_WARNING, LOC + "Warning, old RingBuffer creation");
         ringBuffer = RingBuffer::Create("output.nuv", true);
         weMadeBuffer = true;
         livetv = false;
         if (!ringBuffer->IsOpen())
         {
-            VERBOSE(VB_IMPORTANT, LOC_ERR + "Could not open RingBuffer");
+            LOG(VB_GENERAL, LOG_ERR, LOC + "Could not open RingBuffer");
             errored = true;
             return;
         }
@@ -768,25 +767,24 @@ int NuppelVideoRecorder::AudioInit(bool skipdevice)
         audio_device = AudioInput::CreateDevice(audiodevice.toAscii());
         if (!audio_device)
         {
-            VERBOSE(VB_IMPORTANT, LOC_ERR +
-                    QString("Failed to create audio device: %1")
-                            .arg(audiodevice));
+            LOG(VB_GENERAL, LOG_ERR, LOC +
+                QString("Failed to create audio device: %1") .arg(audiodevice));
             return 1;
         }
 
         if (!audio_device->Open(audio_bits, audio_samplerate, audio_channels))
         {
-            VERBOSE(VB_IMPORTANT, LOC_ERR +
-                    QString("Failed to open audio device %1").arg(audiodevice));
+            LOG(VB_GENERAL, LOG_ERR, LOC +
+                QString("Failed to open audio device %1").arg(audiodevice));
             return 1;
         }
 
         if ((blocksize = audio_device->GetBlockSize()) <= 0)
         {
             blocksize = 1024;
-            VERBOSE(VB_GENERAL, LOC_ERR +
-                    QString("Failed to determine audio block size on %1,"
-                            "using default 1024 bytes").arg(audiodevice));
+            LOG(VB_GENERAL, LOG_ERR, LOC +
+                QString("Failed to determine audio block size on %1,"
+                        "using default 1024 bytes").arg(audiodevice));
         }
 
         audio_device->Close();
@@ -794,8 +792,9 @@ int NuppelVideoRecorder::AudioInit(bool skipdevice)
     }
 
     audio_bytes_per_sample = audio_channels * audio_bits / 8;
-    VERBOSE(VB_AUDIO, LOC + QString("Audio device %1 buffer size: %1 bytes")
-                                    .arg(audio_buffer_size));
+    LOG(VB_AUDIO, LOG_INFO, LOC +
+        QString("Audio device %1 buffer size: %1 bytes")
+            .arg(audio_buffer_size));
 
     if (compressaudio)
     {
@@ -808,15 +807,15 @@ int NuppelVideoRecorder::AudioInit(bool skipdevice)
         lame_set_in_samplerate(gf, audio_samplerate);
         if ((tmp = lame_init_params(gf)) != 0)
         {
-            VERBOSE(VB_IMPORTANT, LOC_ERR +
-                    QString("AudioInit(): lame_init_params error %1").arg(tmp));
+            LOG(VB_GENERAL, LOG_ERR, LOC +
+                QString("AudioInit(): lame_init_params error %1").arg(tmp));
             compressaudio = false;
         }
 
         if (audio_bits != 16)
         {
-            VERBOSE(VB_IMPORTANT, LOC_ERR +
-                    "AudioInit(): lame support requires 16bit audio");
+            LOG(VB_GENERAL, LOG_ERR, LOC +
+                "AudioInit(): lame support requires 16bit audio");
             compressaudio = false;
         }
     }
@@ -848,7 +847,7 @@ bool NuppelVideoRecorder::MJPEGInit(void)
 
         if (init_fd < 0)
         {
-            VERBOSE(VB_IMPORTANT, LOC_ERR + "Can't open video device" + ENO);
+            LOG(VB_GENERAL, LOG_ERR, LOC + "Can't open video device" + ENO);
             return false;
         }
     }
@@ -858,7 +857,7 @@ bool NuppelVideoRecorder::MJPEGInit(void)
     int ret = ioctl(init_fd, VIDIOCGCAP, &vc);
 
     if (ret < 0)
-        VERBOSE(VB_IMPORTANT, LOC_ERR + "Can't query V4L capabilities" + ENO);
+        LOG(VB_GENERAL, LOG_ERR, LOC + "Can't query V4L capabilities" + ENO);
 
     if (we_opened_fd)
         close(init_fd);
@@ -881,7 +880,7 @@ bool NuppelVideoRecorder::MJPEGInit(void)
     }
 #endif // USING_V4L1
 
-    VERBOSE(VB_IMPORTANT, LOC_ERR + "MJPEG not supported by device");
+    LOG(VB_GENERAL, LOG_ERR, LOC + "MJPEG not supported by device");
     return false;
 }
 
@@ -1013,9 +1012,9 @@ bool NuppelVideoRecorder::Open(void)
         fd = open(vdevice.constData(), O_RDWR);
         if (retries++ > 5)
         {
-            VERBOSE(VB_IMPORTANT, LOC_ERR +
-                    QString("Can't open video device: %1").arg(videodevice));
-            perror("open video:");
+            LOG(VB_GENERAL, LOG_ERR, LOC +
+                QString("Can't open video device: %1").arg(videodevice));
+            LOG(VB_GENERAL, LOG_ERR, LOC + "open video: " + ENO);
             KillChildren();
             errored = true;
             return false;
@@ -1041,13 +1040,15 @@ void NuppelVideoRecorder::ProbeV4L2(void)
 
     if (usingv4l2 && !(vcap.capabilities & V4L2_CAP_VIDEO_CAPTURE))
     {
-        VERBOSE(VB_IMPORTANT, LOC + "Not a v4l2 capture device, falling back to v4l");
+        LOG(VB_GENERAL, LOG_ERR, LOC +
+            "Not a v4l2 capture device, falling back to v4l");
         usingv4l2 = false;
     }
 
     if (usingv4l2 && !(vcap.capabilities & V4L2_CAP_STREAMING))
     {
-        VERBOSE(VB_IMPORTANT, LOC + "Won't work with the streaming interface, falling back");
+        LOG(VB_GENERAL, LOG_ERR, LOC +
+            "Won't work with the streaming interface, falling back");
         usingv4l2 = false;
     }
 
@@ -1065,7 +1066,7 @@ void NuppelVideoRecorder::StartRecording(void)
 {
     if (lzo_init() != LZO_E_OK)
     {
-        VERBOSE(VB_IMPORTANT, LOC_ERR + "lzo_init() failed, exiting");
+        LOG(VB_GENERAL, LOG_ERR, LOC + "lzo_init() failed, exiting");
         errored = true;
         return;
     }
@@ -1106,7 +1107,7 @@ void NuppelVideoRecorder::StartRecording(void)
 
     if (CreateNuppelFile() != 0)
     {
-        VERBOSE(VB_IMPORTANT, LOC_ERR + QString("Cannot open '%1' for writing")
+        LOG(VB_GENERAL, LOG_ERR, LOC + QString("Cannot open '%1' for writing")
                 .arg(ringBuffer->GetFilename()));
         errored = true;
         return;
@@ -1114,14 +1115,14 @@ void NuppelVideoRecorder::StartRecording(void)
 
     if (childrenLive)
     {
-        VERBOSE(VB_IMPORTANT, LOC_ERR + "Children are already alive");
+        LOG(VB_GENERAL, LOG_ERR, LOC + "Children are already alive");
         errored = true;
         return;
     }
 
     if (!SpawnChildren())
     {
-        VERBOSE(VB_IMPORTANT, LOC_ERR + "Couldn't spawn children");
+        LOG(VB_GENERAL, LOG_ERR, LOC + "Couldn't spawn children");
         errored = true;
         return;
     }
@@ -1162,7 +1163,7 @@ void NuppelVideoRecorder::DoV4L1(void)
 
     if (ioctl(fd, VIDIOCGCAP, &vc) < 0)
     {
-        perror("VIDIOCGCAP:");
+        LOG(VB_GENERAL, LOG_ERR, LOC + "VIDIOCGCAP: " + ENO);
         KillChildren();
         errored = true;
         return;
@@ -1176,7 +1177,7 @@ void NuppelVideoRecorder::DoV4L1(void)
     vchan.channel = channelinput;
 
     if (ioctl(fd, VIDIOCGCHAN, &vchan) < 0)
-        perror("VIDIOCGCHAN");
+        LOG(VB_GENERAL, LOG_ERR, LOC + "VIDIOCGCHAN: " + ENO);
 
     // Set volume level for audio recording (unless feature is disabled).
     if (!skip_btaudio)
@@ -1187,9 +1188,9 @@ void NuppelVideoRecorder::DoV4L1(void)
         if (ioctl(fd, VIDIOCGAUDIO, &va) < 0)
         {
             bool reports_audio = vchan.flags & VIDEO_VC_AUDIO;
-            uint err_level = reports_audio ? VB_IMPORTANT : VB_AUDIO;
+            uint err_level = reports_audio ? VB_GENERAL : VB_AUDIO;
             // print at VB_IMPORTANT if driver reports audio.
-            VERBOSE(err_level, LOC_ERR + "Failed to get audio" + ENO);
+            LOG(err_level, LOG_ERR, LOC + "Failed to get audio" + ENO);
         }
         else
         {
@@ -1197,7 +1198,7 @@ void NuppelVideoRecorder::DoV4L1(void)
             va.flags &= ~VIDEO_AUDIO_MUTE; // now this really has to work
             va.volume = volume * 65535 / 100;
             if (ioctl(fd, VIDIOCSAUDIO, &va) < 0)
-                VERBOSE(VB_IMPORTANT, LOC_ERR + "Failed to set audio" + ENO);
+                LOG(VB_GENERAL, LOG_ERR, LOC + "Failed to set audio" + ENO);
         }
     }
 
@@ -1213,7 +1214,7 @@ void NuppelVideoRecorder::DoV4L1(void)
 
     if (ioctl(fd, VIDIOCGMBUF, &vm) < 0)
     {
-        perror("VIDIOCGMBUF:");
+        LOG(VB_GENERAL, LOG_ERR, LOC + "VIDIOCGMBUF: " +ENO);
         KillChildren();
         errored = true;
         return;
@@ -1221,7 +1222,7 @@ void NuppelVideoRecorder::DoV4L1(void)
 
     if (vm.frames < 2)
     {
-        fprintf(stderr, "need a minimum of 2 capture buffers\n");
+        LOG(VB_GENERAL, LOG_CRIT, LOC + "need a minimum of 2 capture buffers");
         KillChildren();
         errored = true;
         return;
@@ -1235,7 +1236,7 @@ void NuppelVideoRecorder::DoV4L1(void)
                                                fd, 0);
     if (buf <= 0)
     {
-        perror("mmap");
+        LOG(VB_GENERAL, LOG_ERR, LOC + "mmap: " + ENO);
         KillChildren();
         errored = true;
         return;
@@ -1250,10 +1251,10 @@ void NuppelVideoRecorder::DoV4L1(void)
 
     mm.frame  = 0;
     if (ioctl(fd, VIDIOCMCAPTURE, &mm)<0)
-        perror("VIDIOCMCAPTUREi0");
+        LOG(VB_GENERAL, LOG_ERR, LOC + "VIDIOCMCAPTUREi0: " + ENO);
     mm.frame  = 1;
     if (ioctl(fd, VIDIOCMCAPTURE, &mm)<0)
-        perror("VIDIOCMCAPTUREi1");
+        LOG(VB_GENERAL, LOG_ERR, LOC + "VIDIOCMCAPTUREi1: " + ENO);
 
     encoding = true;
     recording = true;
@@ -1292,10 +1293,10 @@ void NuppelVideoRecorder::DoV4L1(void)
         {
             syncerrors++;
             if (syncerrors == 10)
-                VERBOSE(VB_IMPORTANT, LOC_ERR + "Multiple bttv errors, "
-                        "further messages supressed");
+                LOG(VB_GENERAL, LOG_ERR, LOC +
+                    "Multiple bttv errors, further messages supressed");
             else if (syncerrors < 10)
-                perror("VIDIOCSYNC");
+                LOG(VB_GENERAL, LOG_ERR, LOC + "VIDIOCSYNC: " + ENO);
         }
         else
         {
@@ -1304,7 +1305,7 @@ void NuppelVideoRecorder::DoV4L1(void)
         }
 
         if (ioctl(fd, VIDIOCMCAPTURE, &mm)<0)
-            perror("VIDIOCMCAPTURE0");
+            LOG(VB_GENERAL, LOG_ERR, LOC + "VIDIOCMCAPTURE0: " + ENO);
 
         frame = 1;
         mm.frame = 1;
@@ -1312,9 +1313,10 @@ void NuppelVideoRecorder::DoV4L1(void)
         {
             syncerrors++;
             if (syncerrors == 10)
-                VERBOSE(VB_IMPORTANT, LOC_ERR + "Multiple bttv errors, further messages supressed");
+                LOG(VB_GENERAL, LOG_ERR, LOC +
+                    "Multiple bttv errors, further messages supressed");
             else if (syncerrors < 10)
-                perror("VIDIOCSYNC");
+                LOG(VB_GENERAL, LOG_ERR, LOC + "VIDIOCSYNC: " + ENO);
         }
         else
         {
@@ -1322,7 +1324,7 @@ void NuppelVideoRecorder::DoV4L1(void)
             //memset(buf+vm.offsets[1], 0, video_buffer_size);
         }
         if (ioctl(fd, VIDIOCMCAPTURE, &mm)<0)
-            perror("VIDIOCMCAPTURE1");
+            LOG(VB_GENERAL, LOG_ERR, LOC + "VIDIOCMCAPTURE1: " + ENO);
     }
 
     munmap(buf, vm.size);
@@ -1368,19 +1370,25 @@ bool NuppelVideoRecorder::SetFormatV4L2(void)
             vfmt.fmt.pix.pixelformat = V4L2_PIX_FMT_UYVY;
             if (ioctl(fd, VIDIOC_S_FMT, &vfmt) < 0)
             {
-                VERBOSE(VB_IMPORTANT, LOC_ERR + "v4l2: Unable to set desired format");
+                LOG(VB_GENERAL, LOG_ERR, LOC +
+                    "v4l2: Unable to set desired format");
                 return false;
             }
             else
             {
-                // we need to convert the buffer - we can't deal with uyvy directly.
+                // we need to convert the buffer - we can't deal with uyvy 
+                // directly.
                 if (inpixfmt == FMT_YUV422P)
                 {
-                    VERBOSE(VB_IMPORTANT, LOC_ERR + "v4l2: uyvy format supported, but yuv422 requested.");
-                    VERBOSE(VB_IMPORTANT, LOC_ERR + "v4l2: unfortunately, this converter hasn't been written yet, exiting");
+                    LOG(VB_GENERAL, LOG_ERR, LOC +
+                        "v4l2: uyvy format supported, but yuv422 requested.");
+                    LOG(VB_GENERAL, LOG_ERR, LOC +
+                        "v4l2: unfortunately, this converter hasn't been "
+                        "written yet, exiting");
                     return false;
                 }
-                VERBOSE(VB_RECORD, LOC + "v4l2: format set, getting uyvy from v4l, converting");
+                LOG(VB_RECORD, LOG_INFO, LOC +
+                    "v4l2: format set, getting uyvy from v4l, converting");
             }
         }
         else
@@ -1388,25 +1396,30 @@ bool NuppelVideoRecorder::SetFormatV4L2(void)
             // we need to convert the buffer - we can't deal with yuyv directly.
             if (inpixfmt == FMT_YUV422P)
             {
-                VERBOSE(VB_IMPORTANT, LOC_ERR + "v4l2: yuyv format supported, but yuv422 requested.");
-                VERBOSE(VB_IMPORTANT, LOC_ERR + "v4l2: unfortunately, this converter hasn't been written yet, exiting");
+                LOG(VB_GENERAL, LOG_ERR, LOC +
+                    "v4l2: yuyv format supported, but yuv422 requested.");
+                LOG(VB_GENERAL, LOG_ERR, LOC +
+                    "v4l2: unfortunately, this converter hasn't been written "
+                    "yet, exiting");
                 return false;
             }
-            VERBOSE(VB_RECORD, LOC + "v4l2: format set, getting yuyv from v4l, converting");
+            LOG(VB_RECORD, LOG_INFO, LOC +
+                "v4l2: format set, getting yuyv from v4l, converting");
         }
     }
     else // cool, we can do our preferred format, most likely running on bttv.
-        VERBOSE(VB_RECORD, LOC + "v4l2: format set, getting yuv420 from v4l");
+        LOG(VB_RECORD, LOG_INFO, LOC +
+            "v4l2: format set, getting yuv420 from v4l");
 
     // VIDIOC_S_FMT might change the format, check it
     if (width  != (int)vfmt.fmt.pix.width ||
         height != (int)vfmt.fmt.pix.height)
     {
-        VERBOSE(VB_RECORD, LOC + QString("v4l2: resolution changed. reuested "
-                                         "%1x%2, using %3x%4 now")
+        LOG(VB_RECORD, LOG_INFO, LOC +
+            QString("v4l2: resolution changed. requested %1x%2, using "
+                    "%3x%4 now")
                 .arg(width).arg(height)
-                .arg(vfmt.fmt.pix.width)
-                .arg(vfmt.fmt.pix.height));
+                .arg(vfmt.fmt.pix.width) .arg(vfmt.fmt.pix.height));
         w_out = width  = vfmt.fmt.pix.width;
         h_out = height = vfmt.fmt.pix.height;
     }
@@ -1435,7 +1448,8 @@ void NuppelVideoRecorder::DoV4L2(void)
     vc.value = 0;
 
     if (ioctl(fd, VIDIOC_S_CTRL, &vc) < 0)
-        perror("VIDIOC_S_CTRL:V4L2_CID_AUDIO_MUTE");
+        LOG(VB_GENERAL, LOG_ERR, LOC +
+            "VIDIOC_S_CTRL:V4L2_CID_AUDIO_MUTE: " + ENO);
 
     if (go7007)
     {
@@ -1468,7 +1482,7 @@ void NuppelVideoRecorder::DoV4L2(void)
         comp.flags |= GO7007_COMP_CLOSED_GOP;
         if (ioctl(fd, GO7007IOC_S_COMP_PARAMS, &comp) < 0)
         {
-            VERBOSE(VB_IMPORTANT, LOC_ERR + "Unable to set compression params");
+            LOG(VB_GENERAL, LOG_ERR, LOC + "Unable to set compression params");
             errored = true;
             return;
         }
@@ -1482,7 +1496,7 @@ void NuppelVideoRecorder::DoV4L2(void)
 
         if (ioctl(fd, GO7007IOC_S_MPEG_PARAMS, &mpeg) < 0)
         {
-            VERBOSE(VB_IMPORTANT, LOC_ERR + "Unable to set MPEG params");
+            LOG(VB_GENERAL, LOG_ERR, LOC + "Unable to set MPEG params");
             errored = true;
             return;
         }
@@ -1496,7 +1510,7 @@ void NuppelVideoRecorder::DoV4L2(void)
 
         if (ioctl(fd, GO7007IOC_S_BITRATE, &usebitrate) < 0)
         {
-            VERBOSE(VB_IMPORTANT, LOC_ERR + "Unable to set bitrate");
+            LOG(VB_GENERAL, LOG_ERR, LOC + "Unable to set bitrate");
             errored = true;
             return;
         }
@@ -1512,14 +1526,17 @@ void NuppelVideoRecorder::DoV4L2(void)
 
     if (ioctl(fd, VIDIOC_REQBUFS, &vrbuf) < 0)
     {
-        VERBOSE(VB_IMPORTANT, LOC_ERR + "Not able to get any capture buffers, exiting");
+        LOG(VB_GENERAL, LOG_ERR, LOC +
+            "Not able to get any capture buffers, exiting");
         errored = true;
         return;
     }
 
     if (vrbuf.count < numbuffers)
     {
-        VERBOSE(VB_IMPORTANT, LOC + QString("Requested %1 buffers, but only %2 are available. Proceeding anyway").arg(numbuffers).arg(vrbuf.count));
+        LOG(VB_GENERAL, LOG_INFO, LOC +
+            QString("Requested %1 buffers, but only %2 are available. "
+                    "Proceeding anyway").arg(numbuffers).arg(vrbuf.count));
     }
 
     numbuffers = vrbuf.count;
@@ -1534,7 +1551,8 @@ void NuppelVideoRecorder::DoV4L2(void)
 
         if (ioctl(fd, VIDIOC_QUERYBUF, &vbuf) < 0)
         {
-            VERBOSE(VB_IMPORTANT, LOC_ERR + QString("unable to query capture buffer %1").arg(i));
+            LOG(VB_GENERAL, LOG_ERR, LOC +
+                QString("unable to query capture buffer %1").arg(i));
             errored = true;
             return;
         }
@@ -1545,8 +1563,8 @@ void NuppelVideoRecorder::DoV4L2(void)
 
         if (buffers[i] == MAP_FAILED)
         {
-            perror("mmap");
-            VERBOSE(VB_IMPORTANT, LOC_ERR + QString("Memory map failed"));
+            LOG(VB_GENERAL, LOG_ERR, LOC + "mmap: " + ENO);
+            LOG(VB_GENERAL, LOG_ERR, LOC + QString("Memory map failed"));
             errored = true;
             return;
         }
@@ -1587,8 +1605,8 @@ void NuppelVideoRecorder::DoV4L2(void)
         output_buffer = (uint8_t*)av_malloc(height * width * 3 / 2);
         if (!output_buffer)
         {
-            VERBOSE(VB_IMPORTANT, LOC_ERR + "Cannot initialize image conversion"
-                    "buffer");
+            LOG(VB_GENERAL, LOG_ERR, LOC +
+                "Cannot initialize image conversionbuffer");
             errored = true;
             return;
         }
@@ -1598,8 +1616,8 @@ void NuppelVideoRecorder::DoV4L2(void)
                                            SWS_FAST_BILINEAR, NULL, NULL, NULL);
         if (!convert_ctx)
         {
-            VERBOSE(VB_IMPORTANT, LOC_ERR + "Cannot initialize image conversion "
-                    "context");
+            LOG(VB_GENERAL, LOG_ERR, LOC +
+                "Cannot initialize image conversion context");
             errored = true;
             return;
         }
@@ -1635,7 +1653,7 @@ again:
 
         if (resetcapture)
         {
-            VERBOSE(VB_IMPORTANT, LOC_ERR + "Resetting and re-queueing");
+            LOG(VB_GENERAL, LOG_ERR, LOC + "Resetting and re-queueing");
             turnon = V4L2_BUF_TYPE_VIDEO_CAPTURE;
             ioctl(fd, VIDIOC_STREAMOFF, &turnon);
 
@@ -1661,10 +1679,10 @@ again:
             case -1:
                   if (errno == EINTR)
                       goto again;
-                  perror("select");
+                  LOG(VB_GENERAL, LOG_ERR, LOC + "select: " + ENO);
                   continue;
             case 0:
-                  printf("select timeout\n");
+                  LOG(VB_GENERAL, LOG_INFO, LOC + "select timeout");
                   continue;
            default: break;
         }
@@ -1674,7 +1692,7 @@ again:
         vbuf.memory = V4L2_MEMORY_MMAP;
         if (ioctl(fd, VIDIOC_DQBUF, &vbuf) < 0)
         {
-            VERBOSE(VB_IMPORTANT, LOC_ERR + "DQBUF ioctl failed." + ENO);
+            LOG(VB_GENERAL, LOG_ERR, LOC + "DQBUF ioctl failed." + ENO);
 
             // EIO failed DQBUF de-tunes post 2.6.15.3 for cx88
             // EIO or EINVAL on bttv means we need to reset the buffers..
@@ -1757,7 +1775,7 @@ void NuppelVideoRecorder::DoMJPEG(void)
 
     if (ioctl(fd, MJPIOC_G_PARAMS, &bparm) < 0)
     {
-        perror("MJPIOC_G_PARAMS:");
+        LOG(VB_GENERAL, LOG_ERR, LOC + "MJPIOC_G_PARAMS: " + ENO);
         return;
     }
 
@@ -1811,7 +1829,7 @@ void NuppelVideoRecorder::DoMJPEG(void)
 
     if (ioctl(fd, MJPIOC_S_PARAMS, &bparm) < 0)
     {
-        perror("MJPIOC_S_PARAMS:");
+        LOG(VB_GENERAL, LOG_DEBUG, LOC + "MJPIOC_S_PARAMS: " + ENO);
         return;
     }
 
@@ -1822,7 +1840,7 @@ void NuppelVideoRecorder::DoMJPEG(void)
 
     if (ioctl(fd, MJPIOC_REQBUFS, &breq) < 0)
     {
-        perror("MJPIOC_REQBUFS:");
+        LOG(VB_GENERAL, LOG_DEBUG, LOC + "MJPIOC_REQBUFS: " + ENO);
         return;
     }
 
@@ -1832,7 +1850,7 @@ void NuppelVideoRecorder::DoMJPEG(void)
 
     if (MJPG_buff == MAP_FAILED)
     {
-        VERBOSE(VB_IMPORTANT, LOC_ERR + "mapping mjpeg buffers");
+        LOG(VB_GENERAL, LOG_ERR, LOC + "mapping mjpeg buffers");
         return;
     }
 
@@ -1841,7 +1859,7 @@ void NuppelVideoRecorder::DoMJPEG(void)
     for (unsigned int count = 0; count < breq.count; count++)
     {
         if (ioctl(fd, MJPIOC_QBUF_CAPT, &count) < 0)
-            perror("MJPIOC_QBUF_CAPT:");
+            LOG(VB_GENERAL, LOG_ERR, LOC + "MJPIOC_QBUF_CAPT: " + ENO);
     }
 
     encoding = true;
@@ -1985,7 +2003,8 @@ void NuppelVideoRecorder::BufferIt(unsigned char *buf, int len, bool forcekey)
 
     if (!videobuffer[act]->freeToBuffer)
     {
-        printf("DROPPED frame due to full buffer in the recorder.\n");
+        LOG(VB_GENERAL, LOG_INFO, LOC +
+            "DROPPED frame due to full buffer in the recorder.");
         return; // we can't buffer the current frame
     }
 
@@ -2292,13 +2311,14 @@ int NuppelVideoRecorder::CreateNuppelFile(void)
 
     if (!ringBuffer)
     {
-        VERBOSE(VB_IMPORTANT, LOC_ERR + "No ringbuffer, recorder wasn't initialized.");
+        LOG(VB_GENERAL, LOG_ERR, LOC +
+            "No ringbuffer, recorder wasn't initialized.");
         return -1;
     }
 
     if (!ringBuffer->IsOpen())
     {
-        VERBOSE(VB_IMPORTANT, LOC_ERR + "Ringbuffer isn't open");
+        LOG(VB_GENERAL, LOG_ERR, LOC + "Ringbuffer isn't open");
         return -1;
     }
 
@@ -2359,22 +2379,22 @@ void NuppelVideoRecorder::doAudioThread(void)
 {
     if (!audio_device)
     {
-        VERBOSE(VB_IMPORTANT, LOC_ERR +
-                QString("Invalid audio device (%1), exiting").arg(audiodevice));
+        LOG(VB_GENERAL, LOG_ERR, LOC +
+            QString("Invalid audio device (%1), exiting").arg(audiodevice));
         return;
     }
 
     if (!audio_device->Open(audio_bits, audio_samplerate, audio_channels))
     {
-        VERBOSE(VB_IMPORTANT, LOC_ERR +
-                QString("Failed to open audio device %1").arg(audiodevice));
+        LOG(VB_GENERAL, LOG_ERR, LOC +
+            QString("Failed to open audio device %1").arg(audiodevice));
         return;
     }
 
     if (!audio_device->Start())
     {
-        VERBOSE(VB_IMPORTANT, LOC_ERR +
-                QString("Failed to start audio capture on %1").arg(audiodevice));
+        LOG(VB_GENERAL, LOG_ERR, LOC +
+            QString("Failed to start audio capture on %1").arg(audiodevice));
         return;
     }
 
@@ -2410,10 +2430,9 @@ void NuppelVideoRecorder::doAudioThread(void)
         lastread = audio_device->GetSamples(buffer, audio_buffer_size);
         if (audio_buffer_size != lastread)
         {
-            VERBOSE(VB_IMPORTANT, LOC_ERR
-                    + QString("Short read, %1 of %2 bytes from ")
-                              .arg(lastread).arg(audio_buffer_size)
-                    + audiodevice);
+            LOG(VB_GENERAL, LOG_ERR, LOC +
+                QString("Short read, %1 of %2 bytes from ")
+                    .arg(lastread).arg(audio_buffer_size) + audiodevice);
         }
 
         /* record the current time */
@@ -2427,7 +2446,7 @@ void NuppelVideoRecorder::doAudioThread(void)
 
         if (!audiobuffer[act]->freeToBuffer)
         {
-            VERBOSE(VB_IMPORTANT, LOC_ERR + "Ran out of free AUDIO buffers :-(");
+            LOG(VB_GENERAL, LOG_ERR, LOC + "Ran out of free AUDIO buffers :-(");
             act_audio_sample++;
             continue;
         }
@@ -2471,7 +2490,8 @@ void NuppelVideoRecorder::FormatTT(struct VBIData *vbidata)
     int act = act_text_buffer;
     if (!textbuffer[act]->freeToBuffer)
     {
-        VERBOSE(VB_IMPORTANT, LOC_ERR + QString("Teletext #%1: ran out of free TEXT buffers :-(").arg(act));
+        LOG(VB_GENERAL, LOG_ERR, LOC +
+            QString("Teletext #%1: ran out of free TEXT buffers :-(").arg(act));
         return;
     }
 
@@ -2485,7 +2505,7 @@ void NuppelVideoRecorder::FormatTT(struct VBIData *vbidata)
     unsigned char *inpos = vbidata->teletextpage.data[0];
     unsigned char *outpos = textbuffer[act]->buffer;
     *outpos = 0;
-    struct teletextsubtitle st;
+    struct teletextsubtitle st = { 0 };
     unsigned char linebuf[VT_WIDTH + 1];
     unsigned char *linebufpos = linebuf;
 
@@ -2652,7 +2672,7 @@ void NuppelVideoRecorder::AddTextData(unsigned char *buf, int len,
     int act = act_text_buffer;
     if (!textbuffer[act]->freeToBuffer)
     {
-        VERBOSE(VB_IMPORTANT, LOC_ERR + QString("Teletext#%1").arg(act) +
+        LOG(VB_GENERAL, LOG_ERR, LOC + QString("Teletext#%1").arg(act) +
                 " ran out of free TEXT buffers :-(");
         return;
     }
@@ -2757,7 +2777,8 @@ void NuppelVideoRecorder::doWriteThread(void)
                            audiobuffer[act_audio_encode]->sample,
                            audiobuffer[act_audio_encode]->timecode);
                 if (IsErrored()) {
-                    VERBOSE(VB_IMPORTANT, LOC_ERR + "ACTION_AUDIO cannot be completed due to error.");
+                    LOG(VB_GENERAL, LOG_ERR, LOC +
+                        "ACTION_AUDIO cannot be completed due to error.");
                     StopRecording();
                     break;
                 }
@@ -2944,9 +2965,8 @@ void NuppelVideoRecorder::WriteVideo(VideoFrame *frame, bool skipsync,
                                        len, &mpa_picture);
             if (tmp == -1)
             {
-                VERBOSE(VB_IMPORTANT,
-                        LOC_ERR + "NuppelVideoRecorder::WriteVideo : "
-                                  "avcodec_encode_video() failed");
+                LOG(VB_GENERAL, LOG_ERR, LOC +
+                    "WriteVideo : avcodec_encode_video() failed");
                 return;
             }
         }
@@ -2991,7 +3011,7 @@ void NuppelVideoRecorder::WriteVideo(VideoFrame *frame, bool skipsync,
                                      &out_len, wrkmem);
             if (r != LZO_E_OK)
             {
-                VERBOSE(VB_IMPORTANT, LOC_ERR + "lzo compression failed");
+                LOG(VB_GENERAL, LOG_ERR, LOC + "lzo compression failed");
                 return;
             }
         }
@@ -3091,7 +3111,7 @@ void NuppelVideoRecorder::WriteAudio(unsigned char *buf, int fnum, int timecode)
         if (fnum != (last_block+1))
         {
             audio_behind = fnum - (last_block+1);
-            VERBOSE(VB_RECORD, LOC + QString("audio behind %1 %2").
+            LOG(VB_RECORD, LOG_INFO, LOC + QString("audio behind %1 %2").
                     arg(last_block).arg(fnum));
         }
     }
@@ -3102,7 +3122,10 @@ void NuppelVideoRecorder::WriteAudio(unsigned char *buf, int fnum, int timecode)
     if (firsttc == -1)
     {
         firsttc = timecode;
-        //fprintf(stderr, "first timecode=%d\n", firsttc);
+#if 0
+        LOG(VB_GENERAL, LOG_DEBUG, LOC +
+            QString("first timecode=%1").arg(firsttc));
+#endif
     }
     else
     {
@@ -3149,7 +3172,8 @@ void NuppelVideoRecorder::WriteAudio(unsigned char *buf, int fnum, int timecode)
 
         if (lameret < 0)
         {
-            VERBOSE(VB_IMPORTANT, LOC_ERR + QString("lame error '%1'").arg(lameret));
+            LOG(VB_GENERAL, LOG_ERR, LOC +
+                QString("lame error '%1'").arg(lameret));
             errored = true;
             return;
         }
@@ -3159,7 +3183,8 @@ void NuppelVideoRecorder::WriteAudio(unsigned char *buf, int fnum, int timecode)
                                           7200);
         if (lameret < 0)
         {
-            VERBOSE(VB_IMPORTANT, LOC_ERR + QString("lame error '%1'").arg(lameret));
+            LOG(VB_GENERAL, LOG_ERR, LOC +
+                QString("lame error '%1'").arg(lameret));
             errored = true;
             return;
         }
@@ -3190,7 +3215,7 @@ void NuppelVideoRecorder::WriteAudio(unsigned char *buf, int fnum, int timecode)
     // 'uncountable' video frame drop -> material==worthless
     if (audio_behind > 0)
     {
-        VERBOSE(VB_RECORD, LOC + "audio behind");
+        LOG(VB_RECORD, LOG_INFO, LOC + "audio behind");
         frameheader.frametype = 'A'; // audio frame
         frameheader.comptype  = 'N'; // output a nullframe with
         frameheader.packetlength = 0;

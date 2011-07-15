@@ -43,6 +43,7 @@
 typedef struct {
     uint16_t enabled_button;  /* enabled button id */
     uint16_t x, y, w, h;      /* button rect on overlay plane (if drawn) */
+    int      animate_indx;    /* currently showing object index of animated button, < 0 for static buttons */
 } BOG_DATA;
 
 struct graphics_controller_s {
@@ -61,6 +62,7 @@ struct graphics_controller_s {
     unsigned        popup_visible;
     unsigned        valid_mouse_position;
     BOG_DATA       *bog_data;
+    BOG_DATA       *saved_bog_data;
 
     /* data */
     PG_DISPLAY_SET *pgs;
@@ -147,21 +149,51 @@ static BD_IG_PAGE *_find_page(BD_IG_INTERACTIVE_COMPOSITION *c, unsigned page_id
 enum { BTN_NORMAL, BTN_SELECTED, BTN_ACTIVATED };
 
 static BD_PG_OBJECT *_find_object_for_button(PG_DISPLAY_SET *s,
-                                             BD_IG_BUTTON *button, int state)
+                                             BD_IG_BUTTON *button, int state,
+                                             BOG_DATA *bog_data)
 {
     BD_PG_OBJECT *object   = NULL;
     unsigned object_id     = 0xffff;
+    unsigned object_id_end = 0xffff;
+    unsigned repeat        = 0;
 
     switch (state) {
         case BTN_NORMAL:
-            object_id = button->normal_start_object_id_ref;
+            object_id     = button->normal_start_object_id_ref;
+            object_id_end = button->normal_end_object_id_ref;
+            repeat        = button->normal_repeat_flag;
             break;
         case BTN_SELECTED:
-            object_id = button->selected_start_object_id_ref;
+            object_id     = button->selected_start_object_id_ref;
+            object_id_end = button->selected_end_object_id_ref;
+            repeat        = button->selected_repeat_flag;
             break;
         case BTN_ACTIVATED:
-            object_id = button->activated_start_object_id_ref;
+            object_id     = button->activated_start_object_id_ref;
+            object_id_end = button->activated_end_object_id_ref;
             break;
+    }
+
+    if (bog_data) {
+        if (bog_data->animate_indx >= 0) {
+            int range = object_id_end - object_id;
+
+            if (range > 0 && object_id < 0xffff && object_id_end < 0xffff) {
+                GC_TRACE("animate button #%d: animate_indx %d, range %d, repeat %d\n",
+                         button->id, bog_data->animate_indx, range, repeat);
+
+                object_id += bog_data->animate_indx % (range + 1);
+                bog_data->animate_indx++;
+                if (!repeat && bog_data->animate_indx > range) {
+                /* terminate animation to the last object */
+                    bog_data->animate_indx = -1;
+                }
+
+            } else {
+                /* no animation for this button */
+                bog_data->animate_indx = -1;
+            }
+        }
     }
 
     object = _find_object(s, object_id);
@@ -238,6 +270,53 @@ static uint16_t _find_selected_button_id(GRAPHICS_CONTROLLER *gc)
     return 0xffff;
 }
 
+static int _save_page_state(GRAPHICS_CONTROLLER *gc)
+{
+    if (!gc->bog_data) {
+        GC_ERROR("_save_page_state(): no bog data !\n");
+        return -1;
+    }
+
+    PG_DISPLAY_SET *s       = gc->igs;
+    BD_IG_PAGE     *page    = NULL;
+    unsigned        page_id = bd_psr_read(gc->regs, PSR_MENU_PAGE_ID);
+    unsigned        ii;
+
+    page = _find_page(&s->ics->interactive_composition, page_id);
+    if (!page) {
+        GC_ERROR("_save_page_state(): unknown page #%d (have %d pages)\n",
+              page_id, s->ics->interactive_composition.num_pages);
+        return -1;
+    }
+
+    /* copy enabled button state, clear draw state */
+
+    X_FREE(gc->saved_bog_data);
+    gc->saved_bog_data = calloc(page->num_bogs, sizeof(*gc->saved_bog_data));
+
+    for (ii = 0; ii < page->num_bogs; ii++) {
+        gc->saved_bog_data[ii].enabled_button = gc->bog_data[ii].enabled_button;
+        gc->saved_bog_data[ii].animate_indx   = gc->bog_data[ii].animate_indx >= 0 ? 0 : -1;
+    }
+
+    return 1;
+}
+
+static int _restore_page_state(GRAPHICS_CONTROLLER *gc)
+{
+    if (gc->saved_bog_data) {
+        if (gc->bog_data) {
+            GC_ERROR("_restore_page_state(): bog data already exists !\n");
+            X_FREE(gc->bog_data);
+        }
+        gc->bog_data       = gc->saved_bog_data;
+        gc->saved_bog_data = NULL;
+
+        return 1;
+    }
+    return -1;
+}
+
 static void _reset_page_state(GRAPHICS_CONTROLLER *gc)
 {
     PG_DISPLAY_SET *s       = gc->igs;
@@ -259,6 +338,7 @@ static void _reset_page_state(GRAPHICS_CONTROLLER *gc)
 
     for (ii = 0; ii < page->num_bogs; ii++) {
         gc->bog_data[ii].enabled_button = page->bog[ii].default_valid_button_id_ref;
+        gc->bog_data[ii].animate_indx   = 0;
     }
 }
 
@@ -330,6 +410,44 @@ static void _gc_reset(GRAPHICS_CONTROLLER *gc)
 }
 
 /*
+ * register hook
+ */
+static void _process_psr_event(void *handle, BD_PSR_EVENT *ev)
+{
+    GRAPHICS_CONTROLLER *gc = (GRAPHICS_CONTROLLER *)handle;
+
+    if (ev->ev_type == BD_PSR_SAVE) {
+        BD_DEBUG(DBG_GC, "PSR SAVE event\n");
+
+        /* save menu page state */
+        bd_mutex_lock(&gc->mutex);
+        _save_page_state(gc);
+        bd_mutex_unlock(&gc->mutex);
+
+        return;
+    }
+
+    if (ev->ev_type == BD_PSR_RESTORE) {
+        switch (ev->psr_idx) {
+
+            case PSR_SELECTED_BUTTON_ID:
+              return;
+
+            case PSR_MENU_PAGE_ID:
+                /* restore menus */
+                bd_mutex_lock(&gc->mutex);
+                _restore_page_state(gc);
+                bd_mutex_unlock(&gc->mutex);
+                return;
+
+            default:
+                /* others: ignore */
+                return;
+        }
+    }
+}
+
+/*
  * init / free
  */
 
@@ -344,6 +462,8 @@ GRAPHICS_CONTROLLER *gc_init(BD_REGISTERS *regs, void *handle, gc_overlay_proc_f
 
     bd_mutex_init(&p->mutex);
 
+    bd_psr_register_cb(regs, _process_psr_event, p);
+
     return p;
 }
 
@@ -351,13 +471,17 @@ void gc_free(GRAPHICS_CONTROLLER **p)
 {
     if (p && *p) {
 
-        _gc_reset(*p);
+        GRAPHICS_CONTROLLER *gc = *p;
 
-        if ((*p)->overlay_proc) {
-            (*p)->overlay_proc((*p)->overlay_proc_handle, NULL);
+        bd_psr_unregister_cb(gc->regs, _process_psr_event, gc);
+
+        _gc_reset(gc);
+
+        if (gc->overlay_proc) {
+            gc->overlay_proc(gc->overlay_proc_handle, NULL);
         }
 
-        bd_mutex_destroy(&(*p)->mutex);
+        bd_mutex_destroy(&gc->mutex);
 
         X_FREE(*p);
     }
@@ -383,9 +507,14 @@ int gc_decode_ts(GRAPHICS_CONTROLLER *gc, uint16_t pid, uint8_t *block, unsigned
 
         bd_mutex_lock(&gc->mutex);
 
-        graphics_processor_decode_ts(gc->igp, &gc->igs,
-                                     pid, block, num_blocks,
-                                     stc);
+        if (!graphics_processor_decode_ts(gc->igp, &gc->igs,
+                                          pid, block, num_blocks,
+                                          stc)) {
+            /* no new complete display set */
+            bd_mutex_unlock(&gc->mutex);
+            return 0;
+        }
+
         if (!gc->igs || !gc->igs->complete) {
             bd_mutex_unlock(&gc->mutex);
             return 0;
@@ -429,7 +558,7 @@ static void _render_button(GRAPHICS_CONTROLLER *gc, BD_IG_BUTTON *button, BD_PG_
     BD_PG_OBJECT *object    = NULL;
     BD_OVERLAY    ov;
 
-    object = _find_object_for_button(gc->igs, button, state);
+    object = _find_object_for_button(gc->igs, button, state, bog_data);
     if (!object) {
         GC_TRACE("_render_button(#%d): object (state %d) not found\n", button->id, state);
 
@@ -786,7 +915,7 @@ static int _mouse_move(GRAPHICS_CONTROLLER *gc, unsigned x, unsigned y, GC_NAV_C
     gc->valid_mouse_position = 0;
 
     if (!gc->ig_drawn) {
-        GC_ERROR("_mouse_move(): menu not visible\n");
+        GC_TRACE("_mouse_move(): menu not visible\n");
         return -1;
     }
 
@@ -809,7 +938,7 @@ static int _mouse_move(GRAPHICS_CONTROLLER *gc, unsigned x, unsigned y, GC_NAV_C
             continue;
 
         /* Check for SELECTED state object (button that can be selected) */
-        BD_PG_OBJECT *object = _find_object_for_button(s, button, BTN_SELECTED);
+        BD_PG_OBJECT *object = _find_object_for_button(s, button, BTN_SELECTED, NULL);
         if (!object)
             continue;
 
@@ -821,7 +950,7 @@ static int _mouse_move(GRAPHICS_CONTROLLER *gc, unsigned x, unsigned y, GC_NAV_C
 
         /* is button already selected? */
         if (button->id == cur_btn_id) {
-            return 0;
+            return 1;
         }
 
         new_btn_id = button->id;
@@ -861,6 +990,7 @@ int gc_run(GRAPHICS_CONTROLLER *gc, gc_ctrl_e ctrl, uint32_t param, GC_NAV_CMDS 
 
             bd_mutex_unlock(&gc->mutex);
             return 0;
+
         default:;
     }
 
@@ -919,6 +1049,7 @@ int gc_run(GRAPHICS_CONTROLLER *gc, gc_ctrl_e ctrl, uint32_t param, GC_NAV_CMDS 
         case GC_CTRL_MOUSE_MOVE:
             result = _mouse_move(gc, param >> 16, param & 0xffff, cmds);
             break;
+
         case GC_CTRL_RESET:
             /* already handled */
             break;

@@ -11,8 +11,6 @@ using namespace std;
 #include "audiooutputalsa.h"
 
 #define LOC QString("ALSA: ")
-#define LOC_WARN QString("ALSA, Warning: ")
-#define LOC_ERR QString("ALSA, Error: ")
 
 // redefine assert as no-op to quiet some compiler warnings
 // about assert always evaluating true in alsa headers.
@@ -519,7 +517,7 @@ void AudioOutputALSA::WriteAudio(uchar *aubuf, int size)
         ReorderSmpteToAlsa(aubuf, frames, output_format, channels - 6);
     }
 
-    VERBOSE(VB_AUDIO+VB_TIMESTAMP,
+    LOG(VB_AUDIO | VB_TIMESTAMP, LOG_INFO,
             QString("WriteAudio: Preparing %1 bytes (%2 frames)")
             .arg(size).arg(frames));
 

@@ -13,7 +13,7 @@
 #include "mythwidgets.h"
 #include "mythwizard.h"
 #include "mythdb.h"
-#include "mythverbose.h"
+#include "mythlogging.h"
 
 class QWidget;
 
@@ -59,7 +59,7 @@ class ChannelID : public IntegerSetting, public TransientStorage
 
             if (query.numRowsAffected() != 1)
             {
-                VERBOSE(VB_IMPORTANT, QString("ChannelID, Error: ") +
+                LOG(VB_GENERAL, LOG_ERR, QString("ChannelID, Error: ") +
                         QString("Failed to insert into: %1").arg(table));
             }
         }

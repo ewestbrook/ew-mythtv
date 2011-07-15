@@ -7,15 +7,21 @@
 #include <QQueue>
 #include <QMutex>
 #include <QMutexLocker>
+#include <QRegExp>
 #endif
 #include <stdint.h>
 #include <time.h>
+#include <unistd.h>
+#include <errno.h>
+
 #include "mythbaseexp.h"  //  MBASE_PUBLIC , etc.
+#include "verbosedefs.h"
 
 #define LOGLINE_MAX 2048
 
 typedef enum
 {
+    LOG_ANY = -1,       // For use with masking, not actual logging
     LOG_EMERG = 0,
     LOG_ALERT,
     LOG_CRIT,
@@ -62,7 +68,7 @@ extern MBASE_PUBLIC int LogLevelNameCount;
 extern MBASE_PUBLIC char *LogLevelShortNames[];
 extern MBASE_PUBLIC int LogLevelShortNameCount;
 #endif
-extern MBASE_PUBLIC LogLevel_t LogLevel;
+extern MBASE_PUBLIC LogLevel_t logLevel;
 
 typedef struct
 {
@@ -86,30 +92,43 @@ typedef struct
 extern "C" {
 #endif
 
-#define LogPrintQString(mask, level, string) \
+// There are two LOG macros now.  One for use with Qt/C++, one for use
+// without Qt.
+//
+// Neither of them will lock the calling thread other than momentarily to put
+// the log message onto a queue.
+#ifdef __cplusplus
+#define LOG(mask, level, string) \
     LogPrintLine(mask, (LogLevel_t)level, __FILE__, __LINE__, __FUNCTION__, \
-                 QString(string).toLocal8Bit().constData())
-
-#define LogPrint(mask, level, format, ...) \
+                 QString(string).replace(QRegExp("[%]{1,2}"), "%%") \
+                                .toLocal8Bit().constData())
+#else
+#define LOG(mask, level, format, ...) \
     LogPrintLine(mask, (LogLevel_t)level, __FILE__, __LINE__, __FUNCTION__, \
                  (const char *)format, ##__VA_ARGS__)
+#endif
 
 /* Define the external prototype */
-MBASE_PUBLIC void LogPrintLine( uint32_t mask, LogLevel_t level, 
+MBASE_PUBLIC void LogPrintLine( uint64_t mask, LogLevel_t level, 
                                 const char *file, int line, 
                                 const char *function, const char *format, ... );
 
 #ifdef __cplusplus
 }
 
+extern MBASE_PUBLIC QString logPropagateArgs;
+
 MBASE_PUBLIC void logStart(QString logfile, int quiet = 0, int facility = 0,
-                           bool dblog = true);
+                           LogLevel_t level = LOG_INFO, bool dblog = true, 
+                           bool propagate = false);
 MBASE_PUBLIC void logStop(void);
+MBASE_PUBLIC void logPropagateCalc(void);
+MBASE_PUBLIC bool logPropagateQuiet(void);
+
 MBASE_PUBLIC void threadRegister(QString name);
 MBASE_PUBLIC void threadDeregister(void);
 MBASE_PUBLIC int  syslogGetFacility(QString facility);
-
-void LogTimeStamp( time_t *epoch, uint32_t *usec );
+MBASE_PUBLIC LogLevel_t logLevelGet(QString level);
 
 typedef union {
     char   *string;
@@ -141,6 +160,7 @@ class FileLogger : public LoggerBase {
         int  m_fd;
 };
 
+#ifndef _WIN32
 class SyslogLogger : public LoggerBase {
     public:
         SyslogLogger(int facility);
@@ -151,6 +171,7 @@ class SyslogLogger : public LoggerBase {
         char *m_application;
         bool m_opened;
 };
+#endif
 
 class DBLoggerThread;
 
@@ -165,6 +186,7 @@ class DatabaseLogger : public LoggerBase {
         bool logqmsg(LoggingItem_t *item);
     private:
         bool isDatabaseReady();
+        bool tableExists(const QString &table);
 
         DBLoggerThread *m_thread;
         char *m_host;
@@ -210,6 +232,34 @@ class DBLoggerThread : public QThread {
 };
 #endif
 
+/// This global variable is set at startup with the flags
+/// of the verbose messages we want to see.
+extern MBASE_PUBLIC uint64_t verboseMask;
+
+// Helper for checking verbose mask & level outside of LOG macro
+#define VERBOSE_LEVEL_NONE        (verboseMask == 0)
+#define VERBOSE_LEVEL_CHECK(mask, level) \
+   (((verboseMask & (mask)) == (mask)) && logLevel >= (level))
+
+MBASE_PUBLIC void VERBOSE(uint64_t mask, ...)
+    MERROR("VERBOSE is gone, use LOG");
+
+#ifdef  __cplusplus
+/// Verbose helper function for ENO macro
+extern MBASE_PUBLIC QString logStrerror(int errnum);
+
+extern MBASE_PUBLIC QString verboseString;
+
+MBASE_PUBLIC int verboseArgParse(QString arg);
+
+/// This can be appended to the LOG args with 
+/// "+".  Please do not use "<<".  It uses
+/// a thread safe version of strerror to produce the
+/// string representation of errno and puts it on the
+/// next line in the verbose output.
+#define ENO (QString("\n\t\t\teno: ") + logStrerror(errno))
+#define ENO_STR ENO.toLocal8Bit().constData()
+#endif // __cplusplus
 
 #endif
 

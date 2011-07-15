@@ -33,7 +33,7 @@ using namespace std;
 // for deserialization
 #define NEXT_STR()        do { if (it == listend)                    \
                                {                                     \
-                                   VERBOSE(VB_IMPORTANT, listerror); \
+                                   LOG(VB_GENERAL, LOG_ALERT, listerror); \
                                    clear();                          \
                                    return false;                     \
                                }                                     \
@@ -45,7 +45,6 @@ using namespace std;
 #define STR_FROM_LIST(x)     do { NEXT_STR(); (x) = ts; } while (0)
 
 #define LOC QString("FileSystemInfo: ")
-#define LOC_ERR QString("FileSystemInfo, error: ")
 
 FileSystemInfo::FileSystemInfo(void) :
     m_hostname(""), m_path(""), m_local(false), m_fsid(-1),

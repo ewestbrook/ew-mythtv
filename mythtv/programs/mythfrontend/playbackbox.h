@@ -48,9 +48,9 @@ typedef QMap<QString,ProgramList>       ProgramMap;
 typedef QMap<QString,QString>           Str2StrMap;
 
 enum {
-    kArtworkFanTimeout    = 0,//300,
-    kArtworkBannerTimeout = 0,//50,
-    kArtworkCoverTimeout  = 0,//50,
+    kArtworkFanTimeout    = 300,
+    kArtworkBannerTimeout = 50,
+    kArtworkCoverTimeout  = 50,
 };
 
 class PlaybackBox : public ScheduleCommon
@@ -211,7 +211,8 @@ class PlaybackBox : public ScheduleCommon
     void setPlayGroup(QString newPlayGroup);
 
     void saveRecMetadata(const QString &newTitle, const QString &newSubtitle,
-                         const QString &newDescription);
+                         const QString &newDescription, const QString &newInetref,
+                         uint season, uint episode);
 
     void SetRecGroupPassword(const QString &newPasswd);
 
@@ -219,6 +220,7 @@ class PlaybackBox : public ScheduleCommon
     void doPlaylistJobQueueJob(int jobType, int jobFlags = 0);
     void stopPlaylistJobQueueJob(int jobType);
     void doBeginFlagging();
+    void doBeginLookup();
     void doBeginTranscoding()         {   doJobQueueJob(JOB_TRANSCODE,
                                                         JOB_USE_CUTLIST);      }
     void doBeginUserJob1()            {   doJobQueueJob(JOB_USERJOB1);         }
@@ -230,6 +232,8 @@ class PlaybackBox : public ScheduleCommon
     void stopPlaylistTranscoding()    { stopPlaylistJobQueueJob(JOB_TRANSCODE);}
     void doPlaylistBeginFlagging()    {   doPlaylistJobQueueJob(JOB_COMMFLAG); }
     void stopPlaylistFlagging()       { stopPlaylistJobQueueJob(JOB_COMMFLAG); }
+    void doPlaylistBeginLookup()      {   doPlaylistJobQueueJob(JOB_METADATA); }
+    void stopPlaylistLookup()         { stopPlaylistJobQueueJob(JOB_METADATA); }
     void doPlaylistBeginUserJob1()    {   doPlaylistJobQueueJob(JOB_USERJOB1); }
     void stopPlaylistUserJob1()       { stopPlaylistJobQueueJob(JOB_USERJOB1); }
     void doPlaylistBeginUserJob2()    {   doPlaylistJobQueueJob(JOB_USERJOB2); }
@@ -522,7 +526,8 @@ class RecMetadataEdit : public MythScreenType
     bool Create(void);
 
   signals:
-    void result(const QString &, const QString &, const QString &);
+    void result(const QString &, const QString &, const QString &,
+                const QString &, uint, uint);
 
   protected slots:
     void SaveChanges(void);
@@ -531,6 +536,9 @@ class RecMetadataEdit : public MythScreenType
     MythUITextEdit     *m_titleEdit;
     MythUITextEdit     *m_subtitleEdit;
     MythUITextEdit     *m_descriptionEdit;
+    MythUITextEdit     *m_inetrefEdit;
+    MythUISpinBox      *m_seasonSpin;
+    MythUISpinBox      *m_episodeSpin;
 
     ProgramInfo *m_progInfo;
 };

@@ -79,7 +79,7 @@ bool ProgFinder::Create()
 
     if (err)
     {
-        VERBOSE(VB_IMPORTANT, "Cannot load screen 'programfind'");
+        LOG(VB_GENERAL, LOG_ERR, "Cannot load screen 'programfind'");
         return false;
     }
 
@@ -494,6 +494,8 @@ void ProgFinder::quickRecord()
 
 void ProgFinder::updateTimesList()
 {
+    InfoMap infoMap;
+
     m_timesList->Reset();
 
     if (m_showData.size() > 0)
@@ -508,6 +510,9 @@ void ProgFinder::updateTimesList()
 
             MythUIButtonListItem *item =
                 new MythUIButtonListItem(m_timesList, "");
+
+            m_showData[i]->ToMap(infoMap);
+            item->SetTextFromMap(infoMap);
 
             QString state = toUIState(m_showData[i]->GetRecordingStatus());
             item->SetText(itemText, "buttontext", state);
@@ -1088,7 +1093,7 @@ bool SearchInputDialog::Create(void)
 
     if (err)
     {
-        VERBOSE(VB_IMPORTANT, "Cannot load screen 'searchpopup'");
+        LOG(VB_GENERAL, LOG_ERR, "Cannot load screen 'searchpopup'");
         return false;
     }
 

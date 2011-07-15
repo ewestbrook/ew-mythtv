@@ -13,7 +13,7 @@
 #include "mythuibutton.h"
 #include "channelutil.h"
 #include "importicons.h"
-#include "mythverbose.h"
+#include "mythlogging.h"
 #include "mythuitext.h"
 #include "mythwizard.h"
 #include "scanwizard.h"
@@ -487,8 +487,8 @@ void ChannelEditor::scan(void)
 
     fillList();
 #else
-    VERBOSE(VB_IMPORTANT,  "You must compile the backend "
-            "to be able to scan for channels");
+    LOG(VB_GENERAL, LOG_ERR,
+        "You must compile the backend to be able to scan for channels");
 #endif
 }
 

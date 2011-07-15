@@ -11,7 +11,6 @@
 #include "signalmonitor.h"
 #include "mythcontext.h"
 #include "compat.h"
-#include "mythverbose.h"
 #include "mythlogging.h"
 #include "tv_rec.h"
 
@@ -51,7 +50,7 @@ extern "C" {
 #endif
 
 #undef DBG_SM
-#define DBG_SM(FUNC, MSG) VERBOSE(VB_CHANNEL, \
+#define DBG_SM(FUNC, MSG) LOG(VB_CHANNEL, LOG_DEBUG, \
     QString("SM(%1)::%2: %3").arg(channel->GetDevice()).arg(FUNC).arg(MSG))
 
 /** \class SignalMonitor
@@ -73,7 +72,7 @@ extern "C" {
 
 static void ALRMhandler(int /*sig*/)
 {
-     VERBOSE(VB_GENERAL, "SignalMonitor: Got SIGALRM");
+     LOG(VB_GENERAL, LOG_NOTICE, "SignalMonitor: Got SIGALRM");
      signal(SIGINT, ALRMhandler);
 }
 
@@ -152,8 +151,8 @@ SignalMonitor *SignalMonitor::Init(QString cardtype, int db_cardnum,
 
     if (!signalMonitor)
     {
-        VERBOSE(VB_IMPORTANT,
-                QString("Failed to create signal monitor in Init(%1, %2, 0x%3)")
+        LOG(VB_GENERAL, LOG_ERR,
+            QString("Failed to create signal monitor in Init(%1, %2, 0x%3)")
                 .arg(cardtype).arg(db_cardnum).arg((long)channel,0,16));
     }
 

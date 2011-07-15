@@ -9,7 +9,7 @@ using namespace std;
 
 #include "mythcorecontext.h"
 #include "mythdb.h"
-#include "mythverbose.h"
+#include "mythlogging.h"
 #include "scheduledrecording.h"
 #include "proglist.h"
 #include "dbchannelinfo.h"
@@ -95,7 +95,7 @@ bool ChannelRecPriority::Create()
 
     if (!m_channelList)
     {
-        VERBOSE(VB_IMPORTANT, "Theme is missing critical theme elements.");
+        LOG(VB_GENERAL, LOG_ERR, "Theme is missing critical theme elements.");
         return false;
     }
 

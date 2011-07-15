@@ -5,7 +5,7 @@
 #include <QEvent>
 
 // myth
-#include "mythverbose.h"
+#include "mythlogging.h"
 #include "mythcontext.h"
 #include "mythmainwindow.h"
 #include "mythuihelper.h"
@@ -53,7 +53,7 @@ bool MythBrowser::Create(void)
 
     if (!browser || !m_pageList)
     {
-        VERBOSE(VB_IMPORTANT, "Theme is missing critical theme elements.");
+        LOG(VB_GENERAL, LOG_ERR, "Theme is missing critical theme elements.");
         return false;
     }
 

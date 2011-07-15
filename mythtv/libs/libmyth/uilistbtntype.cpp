@@ -27,7 +27,7 @@ using namespace std;
 #include <QPixmap>
 #include <QPainter>
 
-#include "mythverbose.h"
+#include "mythlogging.h"
 #include "lcddevice.h"
 
 #include "uilistbtntype.h"
@@ -36,8 +36,6 @@ using namespace std;
 #include "mythuihelper.h"
 
 #define LOC      QString("UIListBtn*: ")
-#define LOC_WARN QString("UIListBtn*, Warning: ")
-#define LOC_ERR  QString("UIListBtn*, Error: ")
 
 UIListGenericTree::UIListGenericTree(UIListGenericTree *parent,
                                      const QString &name, const QString &action,
@@ -244,7 +242,9 @@ void UIListTreeType::SetTree(UIListGenericTree *toplevel)
         //  Not really an error, as UIListTreeType is perfectly capable of drawing an empty list.
         //
 
-        // VERBOSE(VB_IMPORTANT, "No top-level children?");
+#if 0
+        LOG(VB_GENERAL, LOG_DEBUG, "No top-level children?");
+#endif
         return;
     }
 
@@ -256,8 +256,8 @@ void UIListTreeType::SetTree(UIListGenericTree *toplevel)
 
     if (!currentlevel)
     {
-        VERBOSE(VB_IMPORTANT, "Something is seriously wrong (currentlevel = "
-                              "NULL)");
+        LOG(VB_GENERAL, LOG_ALERT,
+                 "Something is seriously wrong (currentlevel = NULL)");
         return;
     }
 
@@ -460,7 +460,7 @@ UIListBtnType *UIListTreeType::GetLevel(int levelnum)
 {
     if ((uint)levelnum > (uint)listLevels.size())
     {
-        VERBOSE(VB_IMPORTANT, LOC_ERR + "OOB GetLevel call");
+        LOG(VB_GENERAL, LOG_ERR, LOC + "OOB GetLevel call");
         return NULL;
     }
 
@@ -737,8 +737,8 @@ bool UIListTreeType::tryToSetCurrent(QStringList route)
             currentpos = (UIListGenericTree *)next_child;
             if (!currentlevel->MoveToNamedPosition(currentpos->getString()))
             {
-                VERBOSE(VB_IMPORTANT, "had problem finding "
-                                      "something it knows is there");
+                LOG(VB_GENERAL, LOG_CRIT,
+                         "had problem finding something it knows is there");
                 keep_going = false;
             }
         }
@@ -1418,7 +1418,7 @@ bool UIListBtnType::MoveItemUpDown(UIListBtnTypeItem *item, bool flag)
 
     if (item != m_selItem)
     {
-        VERBOSE(VB_IMPORTANT, LOC_ERR + "Can't move non-selected item");
+        LOG(VB_GENERAL, LOG_ERR, LOC + "Can't move non-selected item");
         return false;
     }
 

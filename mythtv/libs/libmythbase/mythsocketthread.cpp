@@ -25,12 +25,12 @@
 // MythTV
 #include "mythsocketthread.h"
 #include "mythbaseutil.h"
-#include "mythverbose.h"
 #include "mythlogging.h"
 #include "mythsocket.h"
 
 #define SLOC(a) QString("MythSocketThread(sock 0x%1:%2): ")\
-    .arg((quint64)a, 0, 16).arg(a->socket())
+                    .arg((uint64_t)a, 0, 16).arg(a->socket())
+#define LOC	QString("MythSocketThread: ")
 
 const uint MythSocketThread::kShortWait = 100;
 
@@ -94,7 +94,7 @@ void MythSocketThread::AddToReadyRead(MythSocket *sock)
 {
     if (sock->socket() == -1)
     {
-        VERBOSE(VB_SOCKET, SLOC(sock) +
+        LOG(VB_SOCKET, LOG_ERR, SLOC(sock) +
                 "attempted to insert invalid socket to ReadyRead");
         return;
     }
@@ -137,8 +137,8 @@ void MythSocketThread::WakeReadyReadThread(void) const
         wret = ::write(m_readyread_pipe[1], &buf, 1);
         if ((wret < 0) && (EAGAIN != errno) && (EINTR != errno))
         {
-            VERBOSE(VB_IMPORTANT, "MythSocketThread, Error: "
-                    "Failed to write to readyread pipe, closing pipe.");
+            LOG(VB_GENERAL, LOG_ERR, LOC +
+                "Failed to write to readyread pipe, closing pipe.");
 
             // Closing the pipe will cause the run loop's select to exit.
             // Then the next time through the loop we should fallback to
@@ -151,18 +151,18 @@ void MythSocketThread::WakeReadyReadThread(void) const
 
 void MythSocketThread::ReadyToBeRead(MythSocket *sock)
 {
-    VERBOSE(VB_SOCKET, SLOC(sock) + "socket is readable");
+    LOG(VB_SOCKET, LOG_DEBUG, SLOC(sock) + "socket is readable");
     int bytesAvail = sock->bytesAvailable();
     
     if (bytesAvail == 0 && sock->closedByRemote())
     {
-        VERBOSE(VB_SOCKET, SLOC(sock) + "socket closed");
+        LOG(VB_SOCKET, LOG_INFO, SLOC(sock) + "socket closed");
         sock->close();
     }
     else if (bytesAvail > 0 && sock->m_cb && sock->m_useReadyReadCallback)
     {
         sock->m_notifyread = true;
-        VERBOSE(VB_SOCKET, SLOC(sock) + "calling m_cb->readyRead()");
+        LOG(VB_SOCKET, LOG_DEBUG, SLOC(sock) + "calling m_cb->readyRead()");
         sock->m_cb->readyRead(sock);
     }
 }
@@ -189,17 +189,17 @@ void MythSocketThread::ProcessAddRemoveQueues(void)
 void MythSocketThread::run(void)
 {
     threadRegister("Socket");
-    VERBOSE(VB_SOCKET, "MythSocketThread: readyread thread start");
+    LOG(VB_SOCKET, LOG_DEBUG, LOC + "readyread thread start");
 
     QMutexLocker locker(&m_readyread_lock);
     m_readyread_started_wait.wakeAll();
     while (m_readyread_run)
     {
-        VERBOSE(VB_SOCKET|VB_EXTRA, "ProcessAddRemoveQueues");
+        LOG(VB_SOCKET, LOG_DEBUG, LOC + "ProcessAddRemoveQueues");
 
         ProcessAddRemoveQueues();
 
-        VERBOSE(VB_SOCKET|VB_EXTRA, "Construct FD_SET");
+        LOG(VB_SOCKET, LOG_DEBUG, LOC + "Construct FD_SET");
 
         // construct FD_SET for all connected and unlocked sockets...
         int maxfd = -1;
@@ -224,11 +224,11 @@ void MythSocketThread::run(void)
         // There are no unlocked sockets, wait for event before we continue..
         if (maxfd < 0)
         {
-            VERBOSE(VB_SOCKET|VB_EXTRA, "Empty FD_SET, sleeping");
+            LOG(VB_SOCKET, LOG_DEBUG, LOC + "Empty FD_SET, sleeping");
             if (m_readyread_wait.wait(&m_readyread_lock))
-                VERBOSE(VB_SOCKET|VB_EXTRA, "Empty FD_SET, woken up");
+                LOG(VB_SOCKET, LOG_DEBUG, LOC + "Empty FD_SET, woken up");
             else
-                VERBOSE(VB_SOCKET|VB_EXTRA, "Empty FD_SET, timed out");
+                LOG(VB_SOCKET, LOG_DEBUG, LOC + "Empty FD_SET, timed out");
             continue;
         }
 
@@ -255,9 +255,9 @@ void MythSocketThread::run(void)
             // We unlock the ready read lock, because we don't need it
             // and this will allow WakeReadyReadThread() to run..
             m_readyread_lock.unlock();
-            VERBOSE(VB_SOCKET|VB_EXTRA, "Waiting on select..");
+            LOG(VB_SOCKET, LOG_DEBUG, LOC + "Waiting on select..");
             rval = select(maxfd + 1, &rfds, NULL, &efds, NULL);
-            VERBOSE(VB_SOCKET|VB_EXTRA, "Got data on select");
+            LOG(VB_SOCKET, LOG_DEBUG, LOC + "Got data on select");
             m_readyread_lock.lock();
 
             if (rval > 0 && FD_ISSET(m_readyread_pipe[0], &rfds))
@@ -265,14 +265,14 @@ void MythSocketThread::run(void)
                 int ret = ::read(m_readyread_pipe[0], dummy, 128);
                 if (ret < 0)
                 {
-                    VERBOSE(VB_SOCKET|VB_EXTRA,
-                            "Strange.. failed to read event pipe");
+                    LOG(VB_SOCKET, LOG_ERR, LOC +
+                        "Strange.. failed to read event pipe");
                 }
             }
         }
         else
         {
-            VERBOSE(VB_SOCKET|VB_EXTRA, "Waiting on select.. (no pipe)");
+            LOG(VB_SOCKET, LOG_DEBUG, LOC + "Waiting on select.. (no pipe)");
 
             // also exit select on exceptions on same descriptors
             fd_set efds;
@@ -291,7 +291,7 @@ void MythSocketThread::run(void)
                     m_readyread_wait.wait(&m_readyread_lock, kShortWait);
             }
 
-            VERBOSE(VB_SOCKET|VB_EXTRA, "Got data on select (no pipe)");
+            LOG(VB_SOCKET, LOG_DEBUG, LOC + "Got data on select (no pipe)");
         }
 
         if (rval <= 0)
@@ -300,11 +300,10 @@ void MythSocketThread::run(void)
             {
                 // Note: This should never occur when using pipes. When there
                 // is no error there should be data in at least one fd..
-                VERBOSE(VB_SOCKET|VB_EXTRA, "MythSocketThread: select timeout");
+                LOG(VB_SOCKET, LOG_DEBUG, LOC + "select timeout");
             }
             else
-                VERBOSE(VB_SOCKET,
-                        "MythSocketThread: select returned error" + ENO);
+                LOG(VB_SOCKET, LOG_ERR, LOC + "select returned error" + ENO);
 
             m_readyread_wait.wait(&m_readyread_lock, kShortWait);
             continue;
@@ -321,7 +320,7 @@ void MythSocketThread::run(void)
         uint downref_tm = 0;
         if (!m_readyread_downref_list.empty())
         {
-            VERBOSE(VB_SOCKET|VB_EXTRA, "Deleting stale sockets");
+            LOG(VB_SOCKET, LOG_DEBUG, LOC + "Deleting stale sockets");
 
             QTime tm = QTime::currentTime();
             for (it = m_readyread_downref_list.begin();
@@ -333,7 +332,7 @@ void MythSocketThread::run(void)
             downref_tm = tm.elapsed();
         }
 
-        VERBOSE(VB_SOCKET|VB_EXTRA, "Processing ready reads");
+        LOG(VB_SOCKET, LOG_DEBUG, LOC + "Processing ready reads");
 
         QMap<uint,uint> timers;
         QTime tm = QTime::currentTime();
@@ -357,7 +356,7 @@ void MythSocketThread::run(void)
             (*it)->Unlock(false);
         }
 
-        if (VERBOSE_LEVEL_CHECK(VB_SOCKET|VB_EXTRA))
+        if (VERBOSE_LEVEL_CHECK(VB_SOCKET, LOG_DEBUG))
         {
             QString rep = QString("Total read time: %1ms, on sockets")
                 .arg(tm.elapsed());
@@ -367,13 +366,13 @@ void MythSocketThread::run(void)
             if (downref_tm)
                 rep += QString(" {downref, %1ms}").arg(downref_tm);
 
-            VERBOSE(VB_SOCKET|VB_EXTRA, QString("MythSocketThread: ") + rep);
+            LOG(VB_SOCKET, LOG_DEBUG, LOC + rep);
         }
 
         m_readyread_lock.lock();
-        VERBOSE(VB_SOCKET|VB_EXTRA, "Reacquired ready read lock");
+        LOG(VB_SOCKET, LOG_DEBUG, LOC + "Reacquired ready read lock");
     }
 
-    VERBOSE(VB_SOCKET, "MythSocketThread: readyread thread exit");
+    LOG(VB_SOCKET, LOG_DEBUG, LOC + "readyread thread exit");
     threadDeregister();
 }

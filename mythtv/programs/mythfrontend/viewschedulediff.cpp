@@ -1,6 +1,6 @@
 // myth
 #include "mythcorecontext.h"
-#include "mythverbose.h"
+#include "mythlogging.h"
 #include "remoteutil.h"
 #include "recordinginfo.h"
 
@@ -50,7 +50,7 @@ bool ViewScheduleDiff::Create()
 
     if (err)
     {
-        VERBOSE(VB_IMPORTANT, "Cannot load screen 'schedulediff'");
+        LOG(VB_GENERAL, LOG_ERR, "Cannot load screen 'schedulediff'");
         return false;
     }
 
@@ -302,17 +302,20 @@ void ViewScheduleDiff::updateUIList(void)
 
         QString state = toUIState(pginfo->GetRecordingStatus());
 
+        item->DisplayState(state, "status");
         item->SetTextFromMap(infoMap, state);
 
         if (s.before)
-            item->SetText(toQChar(s.before->GetRecordingStatus(),
-                                  s.before->GetCardID()), "statusbefore");
+            item->SetText(toString(s.before->GetRecordingStatus(),
+                                   s.before->GetCardID()), "statusbefore",
+                          state);
         else
             item->SetText("-", "statusbefore");
 
         if (s.after)
-            item->SetText(toQChar(s.after->GetRecordingStatus(),
-                                  s.after->GetCardID()), "statusafter");
+            item->SetText(toString(s.after->GetRecordingStatus(),
+                                   s.after->GetCardID()), "statusafter",
+                          state);
         else
             item->SetText("-", "statusafter");
     }

@@ -1704,61 +1704,78 @@ void bd_stop_bdj(BLURAY *bd)
  * Navigation mode interface
  */
 
+static void _process_psr_restore_event(BLURAY *bd, BD_PSR_EVENT *ev)
+{
+    /* PSR restore events are handled internally.
+     * Restore stored playback position.
+     */
+
+    BD_DEBUG(DBG_BLURAY, "PSR restore: psr%u = %u (%p)\n", ev->psr_idx, ev->new_val, bd);
+
+    switch (ev->psr_idx) {
+        case PSR_ANGLE_NUMBER:
+            /* can't set angle before playlist is opened */
+            return;
+        case PSR_TITLE_NUMBER:
+            /* pass to the application */
+            _queue_event(bd, (BD_EVENT){BD_EVENT_TITLE, ev->new_val});
+            return;
+        case PSR_CHAPTER:
+            /* will be selected automatically */
+            return;
+        case PSR_PLAYLIST:
+            bd_select_playlist(bd, ev->new_val);
+            nav_set_angle(bd->title, bd->st0.clip, bd_psr_read(bd->regs, PSR_ANGLE_NUMBER) - 1);
+            return;
+        case PSR_PLAYITEM:
+            bd_seek_playitem(bd, ev->new_val);
+            return;
+        case PSR_TIME:
+            bd_seek_time(bd, ((int64_t)ev->new_val) << 1);
+            return;
+
+        case PSR_SELECTED_BUTTON_ID:
+        case PSR_MENU_PAGE_ID:
+            /* handled by graphics controller */
+            return;
+
+        default:
+            /* others: ignore */
+            return;
+    }
+}
+
 /*
  * notification events to APP
  */
-static void _process_psr_event(void *handle, BD_PSR_EVENT *ev)
+
+static void _process_psr_write_event(BLURAY *bd, BD_PSR_EVENT *ev)
 {
-    BLURAY *bd = (BLURAY*)handle;
-
-    /* PSR restore events are handled internally */
-
-    if (ev->ev_type == BD_PSR_RESTORE) {
-
-        BD_DEBUG(DBG_BLURAY, "PSR RESTORE event %d %d (%p)\n", ev->psr_idx, ev->new_val, bd);
-
-        /* Restore stored playback position */
-
-        switch (ev->psr_idx) {
-            case PSR_ANGLE_NUMBER:
-                /* can't set angle before playlist is opened */
-                return;
-            case PSR_TITLE_NUMBER:
-                /* pass to the application */
-                break;
-            case PSR_CHAPTER:
-                /* will be selected automatically */
-                return;
-            case PSR_PLAYLIST:
-                bd_select_playlist(bd, ev->new_val);
-                nav_set_angle(bd->title, bd->st0.clip, bd_psr_read(bd->regs, PSR_ANGLE_NUMBER) - 1);
-                return;
-            case PSR_PLAYITEM:
-                bd_seek_playitem(bd, ev->new_val);
-                return;
-            case PSR_TIME:
-                bd_seek_time(bd, ((int64_t)ev->new_val) << 1);
-                return;
-            case PSR_SELECTED_BUTTON_ID:
-            case PSR_MENU_PAGE_ID:
-                /* TODO: need to inform graphics controller ? */
-            default:
-                /* others: ignore */
-                return;
-        }
+    if (ev->ev_type == BD_PSR_WRITE) {
+        BD_DEBUG(DBG_BLURAY, "PSR write: psr%u = %u (%p)\n", ev->psr_idx, ev->new_val, bd);
     }
-
-    BD_DEBUG(DBG_BLURAY, "PSR event %d %d (%p)\n", ev->psr_idx, ev->new_val, bd);
 
     switch (ev->psr_idx) {
 
         /* current playback position */
 
-        case PSR_ANGLE_NUMBER: _queue_event(bd, (BD_EVENT){BD_EVENT_ANGLE, ev->new_val}); break;
-        case PSR_TITLE_NUMBER: _queue_event(bd, (BD_EVENT){BD_EVENT_TITLE, ev->new_val}); break;
-        case PSR_PLAYLIST: _queue_event(bd, (BD_EVENT){BD_EVENT_PLAYLIST, ev->new_val}); break;
-        case PSR_PLAYITEM: _queue_event(bd, (BD_EVENT){BD_EVENT_PLAYITEM, ev->new_val}); break;
-        case PSR_CHAPTER:  _queue_event(bd, (BD_EVENT){BD_EVENT_CHAPTER,  ev->new_val}); break;
+        case PSR_ANGLE_NUMBER: _queue_event(bd, (BD_EVENT){BD_EVENT_ANGLE,    ev->new_val}); break;
+        case PSR_TITLE_NUMBER: _queue_event(bd, (BD_EVENT){BD_EVENT_TITLE,    ev->new_val}); break;
+        case PSR_PLAYLIST:     _queue_event(bd, (BD_EVENT){BD_EVENT_PLAYLIST, ev->new_val}); break;
+        case PSR_PLAYITEM:     _queue_event(bd, (BD_EVENT){BD_EVENT_PLAYITEM, ev->new_val}); break;
+        case PSR_CHAPTER:      _queue_event(bd, (BD_EVENT){BD_EVENT_CHAPTER,  ev->new_val}); break;
+
+        default:;
+    }
+}
+
+static void _process_psr_change_event(BLURAY *bd, BD_PSR_EVENT *ev)
+{
+    BD_DEBUG(DBG_BLURAY, "PSR change: psr%u = %u (%p)\n", ev->psr_idx, ev->new_val, bd);
+
+    _process_psr_write_event(bd, ev);
+
+    switch (ev->psr_idx) {
 
         /* stream selection */
 
@@ -1795,6 +1812,30 @@ static void _process_psr_event(void *handle, BD_PSR_EVENT *ev)
     }
 }
 
+static void _process_psr_event(void *handle, BD_PSR_EVENT *ev)
+{
+    BLURAY *bd = (BLURAY*)handle;
+
+    switch(ev->ev_type) {
+        case BD_PSR_WRITE:
+            _process_psr_write_event(bd, ev);
+            break;
+        case BD_PSR_CHANGE:
+            _process_psr_change_event(bd, ev);
+            break;
+        case BD_PSR_RESTORE:
+            _process_psr_restore_event(bd, ev);
+            break;
+
+        case BD_PSR_SAVE:
+            BD_DEBUG(DBG_BLURAY, "PSR save event (%p)\n", bd);
+            break;
+        default:
+            BD_DEBUG(DBG_BLURAY, "PSR event %d: psr%u = %u (%p)\n", ev->ev_type, ev->psr_idx, ev->new_val, bd);
+            break;
+    }
+}
+
 static void _queue_initial_psr_events(BLURAY *bd)
 {
     const uint32_t psrs[] = {
@@ -1812,13 +1853,13 @@ static void _queue_initial_psr_events(BLURAY *bd)
 
     for (ii = 0; ii < sizeof(psrs) / sizeof(psrs[0]); ii++) {
         BD_PSR_EVENT ev = {
-            .ev_type = 0,
+            .ev_type = BD_PSR_CHANGE,
             .psr_idx = psrs[ii],
             .old_val = 0,
             .new_val = bd_psr_read(bd->regs, psrs[ii]),
         };
 
-        _process_psr_event(bd, &ev);
+        _process_psr_change_event(bd, &ev);
     }
 }
 
@@ -1998,18 +2039,22 @@ int bd_menu_call(BLURAY *bd, int64_t pts)
     return _play_title(bd, BLURAY_TITLE_TOP_MENU);
 }
 
-static void _run_gc(BLURAY *bd, gc_ctrl_e msg, uint32_t param)
+static int _run_gc(BLURAY *bd, gc_ctrl_e msg, uint32_t param)
 {
+    int result = -1;
+
     if (bd && bd->graphics_controller && bd->hdmv_vm) {
         GC_NAV_CMDS cmds = {-1, NULL, -1};
 
-        gc_run(bd->graphics_controller, msg, param, &cmds);
+        result = gc_run(bd->graphics_controller, msg, param, &cmds);
 
         if (cmds.num_nav_cmds > 0) {
             hdmv_vm_set_object(bd->hdmv_vm, cmds.num_nav_cmds, cmds.nav_cmds);
             bd->hdmv_suspended = !hdmv_vm_running(bd->hdmv_vm);
         }
     }
+
+    return result;
 }
 
 static void _process_hdmv_vm_event(BLURAY *bd, HDMV_EVENT *hev)
@@ -2018,6 +2063,7 @@ static void _process_hdmv_vm_event(BLURAY *bd, HDMV_EVENT *hev)
 
     switch (hev->event) {
         case HDMV_EVENT_TITLE:
+            _close_playlist(bd);
             _play_title(bd, hev->param);
             break;
 
@@ -2038,12 +2084,8 @@ static void _process_hdmv_vm_event(BLURAY *bd, HDMV_EVENT *hev)
             break;
 
         case HDMV_EVENT_PLAY_STOP:
-            BD_DEBUG(DBG_BLURAY|DBG_CRIT, "HDMV_EVENT_PLAY_STOP: not tested !\n");
             // stop current playlist
-            bd_seek(bd, (uint64_t)bd->title->packets * 192 - 1);
-            bd->st0.clip = NULL;
-            // resume suspended movie object
-            hdmv_vm_resume(bd->hdmv_vm);
+            _close_playlist(bd);
             break;
 
         case HDMV_EVENT_STILL:
@@ -2160,22 +2202,25 @@ int bd_get_event(BLURAY *bd, BD_EVENT *event)
  * user interaction
  */
 
-void bd_mouse_select(BLURAY *bd, int64_t pts, uint16_t x, uint16_t y)
+void bd_set_scr(BLURAY *bd, int64_t pts)
 {
     if (pts >= 0) {
         bd_psr_write(bd->regs, PSR_TIME, (uint32_t)(((uint64_t)pts) >> 1));
     }
-
-    _run_gc(bd, GC_CTRL_MOUSE_MOVE, (x << 16) | y);
 }
 
-void bd_user_input(BLURAY *bd, int64_t pts, uint32_t key)
+int bd_mouse_select(BLURAY *bd, int64_t pts, uint16_t x, uint16_t y)
 {
-    if (pts >= 0) {
-        bd_psr_write(bd->regs, PSR_TIME, (uint32_t)(((uint64_t)pts) >> 1));
-    }
+    bd_set_scr(bd, pts);
 
-    _run_gc(bd, GC_CTRL_VK_KEY, key);
+    return _run_gc(bd, GC_CTRL_MOUSE_MOVE, (x << 16) | y);
+}
+
+int bd_user_input(BLURAY *bd, int64_t pts, uint32_t key)
+{
+    bd_set_scr(bd, pts);
+
+    return _run_gc(bd, GC_CTRL_VK_KEY, key);
 }
 
 void bd_register_overlay_proc(BLURAY *bd, void *handle, bd_overlay_proc_f func)
@@ -2190,6 +2235,10 @@ void bd_register_overlay_proc(BLURAY *bd, void *handle, bd_overlay_proc_f func)
         bd->graphics_controller = gc_init(bd->regs, handle, func);
     }
 }
+
+/*
+ *
+ */
 
 struct meta_dl *bd_get_meta(BLURAY *bd)
 {

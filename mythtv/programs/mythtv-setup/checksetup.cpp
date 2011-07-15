@@ -65,7 +65,7 @@ bool checkStoragePaths(QStringList &probs)
                             "Storage Group where new recordings will be "
                             "stored.");
         probs.push_back(trMesg);
-        VERBOSE(VB_IMPORTANT, trMesg);
+        LOG(VB_GENERAL, LOG_ERR, trMesg);
         return true;
     }
 
@@ -90,7 +90,7 @@ bool checkStoragePaths(QStringList &probs)
                                 "Default Storage Group where new recordings "
                                 "will be stored.");
             probs.push_back(trMesg);
-            VERBOSE(VB_IMPORTANT, trMesg);
+            LOG(VB_GENERAL, LOG_ERR, trMesg);
             return true;
         }
         else
@@ -165,7 +165,7 @@ bool checkImageStoragePaths(QStringList &probs)
                             "your Videos Storage Group.  Do you want "
                             "to store them in their own groups?");
             probs.push_back(trMesg);
-            VERBOSE(VB_IMPORTANT, trMesg);
+            LOG(VB_GENERAL, LOG_ERR, trMesg);
             problemFound = true;
         }
     }            
@@ -234,6 +234,28 @@ bool CheckSetup(QStringList &problems)
     return checkStoragePaths(problems)
         || checkChannelPresets(problems)
         || checkImageStoragePaths(problems);
+}
+
+bool needsMFDBReminder()
+{
+    bool needsReminder = false;
+    MSqlQuery query(MSqlQuery::InitCon());
+
+    query.prepare("SELECT sourceid "
+                  "FROM videosource "
+                  "WHERE xmltvgrabber = 'schedulesdirect1' "
+                  "OR xmltvgrabber = 'datadirect' "
+                  "OR xmltvgrabber LIKE 'tv_grab_%';");
+    if (!query.exec() || !query.isActive())
+    {
+        MythDB::DBError("needsMFDBReminder", query);
+    }
+    else if (query.size() >= 1)
+    {
+        needsReminder = true;
+    }
+
+    return needsReminder;
 }
 
 /* vim: set expandtab tabstop=4 shiftwidth=4: */

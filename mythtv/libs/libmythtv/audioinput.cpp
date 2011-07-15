@@ -18,14 +18,13 @@
  * 02110-1301, USA.
  */
 
-#include "mythverbose.h"
+#include "mythlogging.h"
 #include "mythconfig.h"
 #include "audioinput.h"
 #include "audioinputoss.h"
 #include "audioinputalsa.h"
 
 #define LOC     QString("AudioIn: ")
-#define LOC_ERR QString("AudioIn Error: ")
 
 AudioInput::AudioInput(const QString &device)
 {
@@ -48,12 +47,12 @@ AudioInput *AudioInput::CreateDevice(const QByteArray &device)
     }
     else if (device == "NULL")
     {
-        VERBOSE(VB_GENERAL, LOC + "creating NULL audio device");
+        LOG(VB_GENERAL, LOG_INFO, LOC + "creating NULL audio device");
     }
     else
     {
-        VERBOSE(VB_IMPORTANT, LOC_ERR + "unknown or unsupported audio input "
-                "device '" + device + "'");
+        LOG(VB_GENERAL, LOG_ERR, LOC +
+            "unknown or unsupported audio input device '" + device + "'");
     }
 
     return audio;

@@ -8,11 +8,9 @@ using namespace std;
 #include "cardutil.h"
 #include "dtvchannel.h"
 #include "mpegtables.h"
-#include "mythverbose.h"
+#include "mythlogging.h"
 
 #define LOC QString("DTVChan(%1): ").arg(GetDevice())
-#define LOC_WARN QString("DTVChan(%1) Warning: ").arg(GetDevice())
-#define LOC_ERR QString("DTVChan(%1) Error: ").arg(GetDevice())
 
 QMutex                    DTVChannel::master_map_lock;
 QMap<QString,DTVChannel*> DTVChannel::master_map;
@@ -174,15 +172,14 @@ const DTVChannel *DTVChannel::GetMaster(const QString &videodevice) const
 
 bool DTVChannel::SetChannelByString(const QString &channum)
 {
-    QString loc = LOC + QString("SetChannelByString(%1)").arg(channum);
-    QString loc_err = loc + ", Error: ";
-    VERBOSE(VB_CHANNEL, loc);
+    QString loc = LOC + QString("SetChannelByString(%1): ").arg(channum);
+    LOG(VB_CHANNEL, LOG_INFO, loc);
 
     ClearDTVInfo();
 
     if (!IsOpen() && !Open())
     {
-        VERBOSE(VB_IMPORTANT, loc_err + "Channel object "
+        LOG(VB_GENERAL, LOG_ERR, loc + "Channel object "
                 "will not open, can not change channels.");
 
         return false;
@@ -193,7 +190,7 @@ bool DTVChannel::SetChannelByString(const QString &channum)
         QString inputName;
         if (!CheckChannel(channum, inputName))
         {
-            VERBOSE(VB_IMPORTANT, loc_err +
+            LOG(VB_GENERAL, LOG_ERR, loc +
                     "CheckChannel failed.\n\t\t\tPlease verify the channel "
                     "in the 'mythtv-setup' Channel Editor.");
 
@@ -214,8 +211,8 @@ bool DTVChannel::SetChannelByString(const QString &channum)
     uint mplexid_restriction;
     if (!IsInputAvailable(m_currentInputID, mplexid_restriction))
     {
-        VERBOSE(VB_IMPORTANT, loc + " " + QString(
-                    "Requested channel '%1' is on input '%2' "
+        LOG(VB_GENERAL, LOG_INFO, loc +
+            QString("Requested channel '%1' is on input '%2' "
                     "which is in a busy input group")
                 .arg(channum).arg(m_currentInputID));
 
@@ -236,16 +233,15 @@ bool DTVChannel::SetChannelByString(const QString &channum)
         si_std, mpeg_prog_num, atsc_major, atsc_minor, tsid, netid,
         mplexid, m_commfree))
     {
-        VERBOSE(VB_IMPORTANT, loc_err +
-                "Unable to find channel in database.");
+        LOG(VB_GENERAL, LOG_ERR, loc + "Unable to find channel in database.");
 
         return false;
     }
 
     if (mplexid_restriction && (mplexid != mplexid_restriction))
     {
-        VERBOSE(VB_IMPORTANT, loc + " " + QString(
-                    "Requested channel '%1' is not available because "
+        LOG(VB_GENERAL, LOG_ERR, loc +
+            QString("Requested channel '%1' is not available because "
                     "the tuner is currently in use on another transport.")
                 .arg(channum));
 
@@ -253,6 +249,11 @@ bool DTVChannel::SetChannelByString(const QString &channum)
     }
 
     // If the frequency is zeroed out, don't use it directly.
+    if (frequency == 0)
+    {
+        frequency = (freqid.toUInt() + finetune) * 1000;
+        mplexid = 0;
+    }
     bool isFrequency = (frequency > 10000000);
     bool hasTuneToChan =
         !(*it)->tuneToChannel.isEmpty() && (*it)->tuneToChannel != "Undefined";
@@ -284,7 +285,7 @@ bool DTVChannel::SetChannelByString(const QString &channum)
         if ((*it)->name.contains("composite", Qt::CaseInsensitive) ||
             (*it)->name.contains("s-video", Qt::CaseInsensitive))
         {
-            VERBOSE(VB_GENERAL, LOC_WARN + "You have not set "
+            LOG(VB_GENERAL, LOG_WARNING, loc + "You have not set "
                     "an external channel changing"
                     "\n\t\t\tscript for a composite or s-video "
                     "input. Channel changing will do nothing.");
@@ -298,7 +299,7 @@ bool DTVChannel::SetChannelByString(const QString &channum)
             DTVMultiplex tuning;
             if (!mplexid || !tuning.FillFromDB(tunerType, mplexid))
             {
-                VERBOSE(VB_IMPORTANT, loc_err +
+                LOG(VB_GENERAL, LOG_ERR, loc +
                         "Failed to initialize multiplex options");
                 ok = false;
             }
@@ -310,7 +311,7 @@ bool DTVChannel::SetChannelByString(const QString &channum)
                 // Tune to proper multiplex
                 if (!Tune(tuning, (*it)->name))
                 {
-                    VERBOSE(VB_IMPORTANT, loc_err + "Tuning to frequency.");
+                    LOG(VB_GENERAL, LOG_ERR, loc + "Tuning to frequency.");
 
                     ClearDTVInfo();
                     ok = false;
@@ -323,7 +324,7 @@ bool DTVChannel::SetChannelByString(const QString &channum)
         }
     }
 
-    VERBOSE(VB_CHANNEL, loc + " " + ((ok) ? "success" : "failure"));
+    LOG(VB_CHANNEL, LOG_INFO, loc + ((ok) ? "success" : "failure"));
 
     if (!ok)
         return false;
@@ -341,7 +342,7 @@ bool DTVChannel::SetChannelByString(const QString &channum)
         ChannelUtil::GetCachedPids(chanid, pid_cache);
         if (pid_cache.empty())
         {
-            VERBOSE(VB_IMPORTANT, loc_err + "PID cache is empty");
+            LOG(VB_GENERAL, LOG_ERR, loc + "PID cache is empty");
             return false;
         }
 

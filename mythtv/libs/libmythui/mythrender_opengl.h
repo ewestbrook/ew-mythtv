@@ -18,7 +18,7 @@
 #endif
 
 #include "mythuiexp.h"
-#include "mythverbose.h"
+#include "mythlogging.h"
 #include "mythrender_base.h"
 #include "mythrender_opengl_defs.h"
 
@@ -113,6 +113,8 @@ class MUI_PUBLIC MythRenderOpenGL : public QGLContext, public MythRender
 
     int   GetMaxTextureSize(void)    { return m_max_tex_size; }
     uint  GetFeatures(void)          { return m_exts_used;    }
+
+    bool  IsRecommendedRenderer(void);
 
     void  MoveResizeWindow(const QRect &rect);
     void  SetViewPort(const QRect &rect);

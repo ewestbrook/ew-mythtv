@@ -36,7 +36,7 @@
 // MythTV headers
 #include "mythcontext.h"
 #include "mythdbcon.h"
-#include "mythverbose.h"
+#include "mythlogging.h"
 #include "dtvconfparser.h"
 #include "channelutil.h"
 
@@ -304,7 +304,7 @@ void DTVConfParser::AddChannel(const DTVMultiplex &mux, DTVChannelInfo &chan)
         {
             channels[i].channels.push_back(chan);
 
-            VERBOSE(VB_IMPORTANT, "Imported channel: " + chan.toString() +
+            LOG(VB_GENERAL, LOG_INFO, "Imported channel: " + chan.toString() +
                     " on " + mux.toString());
             return;
         }
@@ -313,6 +313,6 @@ void DTVConfParser::AddChannel(const DTVMultiplex &mux, DTVChannelInfo &chan)
     channels.push_back(mux);
     channels.back().channels.push_back(chan);
 
-    VERBOSE(VB_IMPORTANT, "Imported channel: " + chan.toString() +
+    LOG(VB_GENERAL, LOG_INFO, "Imported channel: " + chan.toString() +
             " on " + mux.toString());
 }

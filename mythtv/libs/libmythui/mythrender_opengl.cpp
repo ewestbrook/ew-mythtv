@@ -1,12 +1,11 @@
 #include <algorithm>
 using namespace std;
 
-#include "mythverbose.h"
+#include "mythlogging.h"
 #include "mythrender_opengl.h"
 #include "mythxdisplay.h"
 
 #define LOC QString("OpenGL: ")
-#define LOC_ERR QString("OpenGL Error: ")
 
 #include "mythrender_opengl2.h"
 #ifdef USING_OPENGLES
@@ -22,7 +21,7 @@ static inline int __glCheck__(const QString &loc, const char* fileName, int n)
     int error = glGetError();
     if (error)
     {
-        VERBOSE(VB_IMPORTANT, QString("%1: %2 @ %3, %4")
+        LOG(VB_GENERAL, LOG_ERR, QString("%1: %2 @ %3, %4")
             .arg(loc).arg(error).arg(fileName).arg(n));
     }
     return error;
@@ -79,7 +78,27 @@ void MythRenderOpenGL::Init(void)
     Init2DState();
     InitFeatures();
 
-    VERBOSE(VB_GENERAL, LOC + "Initialised MythRenderOpenGL");
+    LOG(VB_GENERAL, LOG_INFO, LOC + "Initialised MythRenderOpenGL");
+}
+
+bool MythRenderOpenGL::IsRecommendedRenderer(void)
+{
+    bool recommended = true;
+    OpenGLLocker locker(this);
+    if (!(this->format().directRendering()))
+    {
+        LOG(VB_GENERAL, LOG_WARNING, LOC +
+            "OpenGL is using software rendering.");
+        recommended = false;
+    }
+    else if (QString((const char*) glGetString(GL_RENDERER))
+             .contains("Software Rasterizer", Qt::CaseInsensitive))
+    {
+        LOG(VB_GENERAL, LOG_WARNING, LOC +
+            "OpenGL is using software rasterizer.");
+        recommended = false;
+    }
+    return recommended;
 }
 
 void MythRenderOpenGL::makeCurrent()
@@ -96,14 +115,16 @@ void MythRenderOpenGL::doneCurrent()
     if (m_lock_level == 0)
         QGLContext::doneCurrent();
     if (m_lock_level < 0)
-        VERBOSE(VB_IMPORTANT, LOC_ERR + "Mis-matched calls to makeCurrent()");
+        LOG(VB_GENERAL, LOG_ERR, LOC + "Mis-matched calls to makeCurrent()");
     m_lock->unlock();
 }
 
 void MythRenderOpenGL::Release(void)
 {
+#if !defined(Q_WS_WIN)
     while (m_lock_level > 0)
         doneCurrent();
+#endif
 }
 
 void MythRenderOpenGL::MoveResizeWindow(const QRect &rect)
@@ -180,13 +201,13 @@ void MythRenderOpenGL::SetFence(void)
     {
         m_glGenFencesAPPLE(1, &m_fence);
         if (m_fence)
-            VERBOSE(VB_PLAYBACK, LOC + "Using GL_APPLE_fence");
+            LOG(VB_PLAYBACK, LOG_INFO, LOC + "Using GL_APPLE_fence");
     }
     else if (m_exts_used & kGLNVFence)
     {
         m_glGenFencesNV(1, &m_fence);
         if (m_fence)
-            VERBOSE(VB_PLAYBACK, LOC + "Using GL_NV_fence");
+            LOG(VB_PLAYBACK, LOG_INFO, LOC + "Using GL_NV_fence");
     }
     doneCurrent();
 }
@@ -259,7 +280,7 @@ int MythRenderOpenGL::GetTextureType(bool &rect)
         check = false;
         rects = !getenv("OPENGL_NORECT");
         if (!rects)
-            VERBOSE(VB_GENERAL, LOC + "Disabling NPOT textures.");
+            LOG(VB_GENERAL, LOG_INFO, LOC + "Disabling NPOT textures.");
     }
 
     int ret = GL_TEXTURE_2D;
@@ -510,44 +531,44 @@ bool MythRenderOpenGL::CreateFrameBuffer(uint &fb, uint tex)
     switch (status)
     {
         case GL_FRAMEBUFFER_COMPLETE:
-            VERBOSE(VB_PLAYBACK, LOC +
-                    QString("Created frame buffer object (%1x%2).")
+            LOG(VB_PLAYBACK, LOG_INFO, LOC +
+                QString("Created frame buffer object (%1x%2).")
                     .arg(size.width()).arg(size.height()));
             success = true;
             break;
         case GL_FRAMEBUFFER_INCOMPLETE_ATTACHMENT:
-            VERBOSE(VB_PLAYBACK, LOC + "Frame buffer incomplete_ATTACHMENT");
+            LOG(VB_PLAYBACK, LOG_INFO, LOC +
+                "Frame buffer incomplete_ATTACHMENT");
             break;
         case GL_FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT:
-            VERBOSE(VB_PLAYBACK, LOC +
-                    "Frame buffer incomplete_MISSING_ATTACHMENT");
+            LOG(VB_PLAYBACK, LOG_INFO, LOC +
+                "Frame buffer incomplete_MISSING_ATTACHMENT");
             break;
         case GL_FRAMEBUFFER_INCOMPLETE_DUPLICATE_ATTACHMENT:
-            VERBOSE(VB_PLAYBACK, LOC +
-                    "Frame buffer incomplete_DUPLICATE_ATTACHMENT");
+            LOG(VB_PLAYBACK, LOG_INFO, LOC +
+                "Frame buffer incomplete_DUPLICATE_ATTACHMENT");
             break;
         case GL_FRAMEBUFFER_INCOMPLETE_DIMENSIONS:
-            VERBOSE(VB_PLAYBACK, LOC +
-                    "Frame buffer incomplete_DIMENSIONS");
+            LOG(VB_PLAYBACK, LOG_INFO, LOC +
+                "Frame buffer incomplete_DIMENSIONS");
             break;
         case GL_FRAMEBUFFER_INCOMPLETE_FORMATS:
-            VERBOSE(VB_PLAYBACK, LOC +
-                    "Frame buffer incomplete_FORMATS");
+            LOG(VB_PLAYBACK, LOG_INFO, LOC + "Frame buffer incomplete_FORMATS");
             break;
         case GL_FRAMEBUFFER_INCOMPLETE_DRAW_BUFFER:
-            VERBOSE(VB_PLAYBACK, LOC +
-                    "Frame buffer incomplete_DRAW_BUFFER");
+            LOG(VB_PLAYBACK, LOG_INFO, LOC +
+                "Frame buffer incomplete_DRAW_BUFFER");
             break;
         case GL_FRAMEBUFFER_INCOMPLETE_READ_BUFFER:
-            VERBOSE(VB_PLAYBACK, LOC +
-                    "Frame buffer incomplete_READ_BUFFER");
+            LOG(VB_PLAYBACK, LOG_INFO, LOC + 
+                "Frame buffer incomplete_READ_BUFFER");
             break;
         case GL_FRAMEBUFFER_UNSUPPORTED:
-            VERBOSE(VB_PLAYBACK, LOC + "Frame buffer unsupported.");
+            LOG(VB_PLAYBACK, LOG_INFO, LOC + "Frame buffer unsupported.");
             break;
         default:
-            VERBOSE(VB_PLAYBACK, LOC +
-                    QString("Unknown frame buffer error %1.").arg(status));
+            LOG(VB_PLAYBACK, LOG_INFO, LOC +
+                QString("Unknown frame buffer error %1.").arg(status));
     }
 
     if (success)
@@ -725,7 +746,8 @@ void* MythRenderOpenGL::GetProcAddress(const QString &proc) const
             break;
     }
     if (result == NULL)
-        VERBOSE(VB_EXTRA, LOC + QString("Extension not found: %1").arg(proc));
+        LOG(VB_GENERAL, LOG_DEBUG, LOC +
+            QString("Extension not found: %1").arg(proc));
 
     return result;
 }
@@ -754,21 +776,21 @@ bool MythRenderOpenGL::InitFeatures(void)
         ycbcrtextures = !getenv("OPENGL_NOYCBCR");
         mipmapping    = !getenv("OPENGL_NOMIPMAP");
         if (!multitexture)
-            VERBOSE(VB_GENERAL, LOC + "Disabling multi-texturing.");
+            LOG(VB_GENERAL, LOG_INFO, LOC + "Disabling multi-texturing.");
         if (!vertexarrays)
-            VERBOSE(VB_GENERAL, LOC + "Disabling Vertex Arrays.");
+            LOG(VB_GENERAL, LOG_INFO, LOC + "Disabling Vertex Arrays.");
         if (!framebuffers)
-            VERBOSE(VB_GENERAL, LOC + "Disabling Framebuffer Objects.");
+            LOG(VB_GENERAL, LOG_INFO, LOC + "Disabling Framebuffer Objects.");
         if (!pixelbuffers)
-            VERBOSE(VB_GENERAL, LOC + "Disabling Pixel Buffer Objects.");
+            LOG(VB_GENERAL, LOG_INFO, LOC + "Disabling Pixel Buffer Objects.");
         if (!vertexbuffers)
-            VERBOSE(VB_GENERAL, LOC + "Disabling Vertex Buffer Objects.");
+            LOG(VB_GENERAL, LOG_INFO, LOC + "Disabling Vertex Buffer Objects.");
         if (!fences)
-            VERBOSE(VB_GENERAL, LOC + "Disabling fences.");
+            LOG(VB_GENERAL, LOG_INFO, LOC + "Disabling fences.");
         if (!ycbcrtextures)
-            VERBOSE(VB_GENERAL, LOC + "Disabling YCbCr textures.");
+            LOG(VB_GENERAL, LOG_INFO, LOC + "Disabling YCbCr textures.");
         if (!mipmapping)
-            VERBOSE(VB_GENERAL, LOC + "Disabling mipmapping.");
+            LOG(VB_GENERAL, LOG_INFO, LOC + "Disabling mipmapping.");
     }
 
     GLint maxtexsz = 0;
@@ -790,16 +812,14 @@ bool MythRenderOpenGL::InitFeatures(void)
         m_exts_supported += kGLMultiTex;
         if (m_max_units < 3)
         {
-            VERBOSE(VB_IMPORTANT, LOC_ERR +
-                QString("Insufficient texture units for "
-                        "advanced OpenGL features."));
+            LOG(VB_GENERAL, LOG_ERR, LOC +
+                "Insufficient texture units for advanced OpenGL features.");
         }
     }
     else
     {
-        VERBOSE(VB_IMPORTANT, LOC_ERR +
-            QString("Multi-texturing not supported. "
-                    "Certain OpenGL features will not work"));
+        LOG(VB_GENERAL, LOG_ERR, LOC + "Multi-texturing not supported. Certain "
+                                       "OpenGL features will not work");
     }
 
     if (m_extensions.contains("GL_EXT_vertex_array") && vertexarrays)
@@ -808,9 +828,8 @@ bool MythRenderOpenGL::InitFeatures(void)
     }
     else
     {
-        VERBOSE(VB_IMPORTANT, LOC_ERR +
-            QString("GL_EXT_vertex_array extension not supported. "
-                    "This may not work"));
+        LOG(VB_GENERAL, LOG_ERR, LOC +
+            "GL_EXT_vertex_array extension not supported. This may not work");
     }
 
     if (m_extensions.contains("GL_EXT_framebuffer_object") &&
@@ -857,17 +876,17 @@ bool MythRenderOpenGL::InitFeatures(void)
     if (!debugged)
     {
         debugged = true;
-        VERBOSE(VB_GENERAL, LOC + QString("OpenGL vendor  : %1")
+        LOG(VB_GENERAL, LOG_INFO, LOC + QString("OpenGL vendor  : %1")
                 .arg((const char*) glGetString(GL_VENDOR)));
-        VERBOSE(VB_GENERAL, LOC + QString("OpenGL renderer: %1")
+        LOG(VB_GENERAL, LOG_INFO, LOC + QString("OpenGL renderer: %1")
                 .arg((const char*) glGetString(GL_RENDERER)));
-        VERBOSE(VB_GENERAL, LOC + QString("OpenGL version : %1")
+        LOG(VB_GENERAL, LOG_INFO, LOC + QString("OpenGL version : %1")
                 .arg((const char*) glGetString(GL_VERSION)));
-        VERBOSE(VB_GENERAL, LOC + QString("Max texture size: %1 x %2")
+        LOG(VB_GENERAL, LOG_INFO, LOC + QString("Max texture size: %1 x %2")
                 .arg(m_max_tex_size).arg(m_max_tex_size));
-        VERBOSE(VB_GENERAL, LOC + QString("Max texture units: %1")
+        LOG(VB_GENERAL, LOG_INFO, LOC + QString("Max texture units: %1")
                 .arg(m_max_units));
-        VERBOSE(VB_GENERAL, LOC + QString("Direct rendering: %1")
+        LOG(VB_GENERAL, LOG_INFO, LOC + QString("Direct rendering: %1")
                 .arg((this->format().directRendering()) ? "Yes" : "No"));
     }
 
@@ -875,8 +894,7 @@ bool MythRenderOpenGL::InitFeatures(void)
 
     if (m_exts_used & kGLExtPBufObj)
     {
-        VERBOSE(VB_GENERAL, LOC +
-                        QString("PixelBufferObject support available"));
+        LOG(VB_GENERAL, LOG_INFO, LOC + "PixelBufferObject support available");
     }
 
     return true;
@@ -964,7 +982,7 @@ uint MythRenderOpenGL::CreateVBO(void)
 
 void MythRenderOpenGL::DeleteOpenGLResources(void)
 {
-    VERBOSE(VB_GENERAL, LOC + "Deleting OpenGL Resources");
+    LOG(VB_GENERAL, LOG_INFO, LOC + "Deleting OpenGL Resources");
     DeleteTextures();
     DeleteFrameBuffers();
     Flush(true);
@@ -985,13 +1003,13 @@ void MythRenderOpenGL::DeleteOpenGLResources(void)
 
     if (m_cachedVertices.size())
     {
-        VERBOSE(VB_IMPORTANT, LOC_ERR + QString(" %1 unexpired vertices")
+        LOG(VB_GENERAL, LOG_ERR, LOC + QString(" %1 unexpired vertices")
             .arg(m_cachedVertices.size()));
     }
 
     if (m_cachedVBOS.size())
     {
-        VERBOSE(VB_IMPORTANT, LOC_ERR + QString(" %1 unexpired VBOs")
+        LOG(VB_GENERAL, LOG_ERR, LOC + QString(" %1 unexpired VBOs")
             .arg(m_cachedVertices.size()));
     }
 }

@@ -8,7 +8,6 @@
 #include <QRegExp>
 
 // MythTV headers
-#include "mythverbose.h"
 #include "mythcorecontext.h"
 #include "mythcoreutil.h"
 #include "remotefile.h"
@@ -124,7 +123,7 @@ bool ThemeChooser::Create(void)
 
     if (err)
     {
-        VERBOSE(VB_IMPORTANT, LOC_ERR + "Cannot load screen 'themechooser'");
+        LOG(VB_GENERAL, LOG_ERR, LOC + "Cannot load screen 'themechooser'");
         return false;
     }
 
@@ -201,15 +200,17 @@ void ThemeChooser::Load(void)
         QFileInfo finfo(remoteThemesFile);
         if (finfo.lastModified() < mythCurrentDateTime().addSecs(-600))
         {
-            VERBOSE(VB_GUI, LOC + QString("%1 is over 10 minutes old, forcing "
-                    "remote theme list download").arg(remoteThemesFile));
+            LOG(VB_GUI, LOG_INFO, LOC +
+                QString("%1 is over 10 minutes old, forcing "
+                        "remote theme list download").arg(remoteThemesFile));
             m_refreshDownloadableThemes = true;
         }
     }
     else if (downloadFailures < 2) // (and themes.zip does not exist)
     {
-        VERBOSE(VB_GUI, LOC + QString("%1 does not exist, forcing remote theme "
-                "list download").arg(remoteThemesFile));
+        LOG(VB_GUI, LOG_INFO, LOC +
+            QString("%1 does not exist, forcing remote theme "
+                    "list download").arg(remoteThemesFile));
         m_refreshDownloadableThemes = true;
     }
 
@@ -247,9 +248,9 @@ void ThemeChooser::Load(void)
     {
         SetBusyPopupMessage(tr("Loading Downloadable Themes"));
 
-        VERBOSE(VB_GUI, LOC + QString("%1 and %2 exist, using cached remote "
-                                      "themes list").arg(remoteThemesFile)
-                                      .arg(remoteThemesDir.absolutePath()));
+        LOG(VB_GUI, LOG_INFO, LOC +
+            QString("%1 and %2 exist, using cached remote themes list")
+                .arg(remoteThemesFile).arg(remoteThemesDir.absolutePath()));
 
         QString themesPath = remoteThemesDir.absolutePath();
         themes.setPath(themesPath);
@@ -569,7 +570,7 @@ void ThemeChooser::toggleThemeUpdateNotifications(void)
 
 void ThemeChooser::refreshDownloadableThemes(void)
 {
-    VERBOSE(VB_GUI, LOC + "Forcing remote theme list refresh");
+    LOG(VB_GUI, LOG_INFO, LOC + "Forcing remote theme list refresh");
     m_refreshDownloadableThemes = true;
     gCoreContext->SaveSetting("ThemeInfoDownloadFailures", 0);
     ReloadInBackground();
@@ -602,8 +603,9 @@ void ThemeChooser::saveAndReload(MythUIButtonListItem *item)
                     .split(";", QString::SkipEmptyParts);
             QString origURL = downloadURL;
             downloadURL.replace(tokens[0], tokens[1]);
-            VERBOSE(VB_FILE, LOC + QString("Theme download URL overridden "
-                    "from %1 to %2.").arg(origURL).arg(downloadURL));
+            LOG(VB_FILE, LOG_WARNING, LOC +
+                QString("Theme download URL overridden from %1 to %2.")
+                    .arg(origURL).arg(downloadURL));
         }
 
         OpenBusyPopup(tr("Downloading %1 Theme").arg(info->GetName()));
@@ -615,7 +617,7 @@ void ThemeChooser::saveAndReload(MythUIButtonListItem *item)
     else
     {
         gCoreContext->SaveSetting("Theme", info->GetDirectoryName());
-        GetMythMainWindow()->JumpTo("Reload Theme");
+        GetMythMainWindow()->JumpTo("Reload Theme", false);
     }
 }
 
@@ -734,6 +736,7 @@ void ThemeChooser::customEvent(QEvent *e)
                         if (file.exists())
                         {
                             remoteFileIsLocal = true;
+                            m_downloadFile = localFile;
                         }
                         else
                         {
@@ -741,8 +744,9 @@ void ThemeChooser::customEvent(QEvent *e)
                                 m_downloadFile, localFile, this);
                             OpenBusyPopup(tr("Copying %1 Theme Package")
                                           .arg(m_downloadTheme->GetName()));
+                            m_downloadFile = localFile;
+                            return;
                         }
-                        m_downloadFile = localFile;
                     }
                     else
                     {
@@ -793,7 +797,7 @@ void ThemeChooser::customEvent(QEvent *e)
             SendMythSystemEvent(event);
 
             gCoreContext->SaveSetting("Theme", m_downloadTheme->GetDirectoryName());
-            GetMythMainWindow()->JumpTo("Reload Theme");
+            GetMythMainWindow()->JumpTo("Reload Theme", false);
         }
     }
 }
@@ -926,18 +930,19 @@ void ThemeUpdateChecker::checkForUpdate(void)
             ThemeInfo *remoteTheme = new ThemeInfo(remoteThemeDir);
             if (!remoteTheme)
             {
-                VERBOSE(VB_IMPORTANT,
-                        QString("ThemeUpdateChecker::checkForUpdate(): "
-                                "Unable to create ThemeInfo for %1")
-                                .arg(infoXML));
+                LOG(VB_GENERAL, LOG_ERR,
+                    QString("ThemeUpdateChecker::checkForUpdate(): "
+                            "Unable to create ThemeInfo for %1")
+                        .arg(infoXML));
                 return;
             }
                 
             ThemeInfo *localTheme = new ThemeInfo(GetMythUI()->GetThemeDir());
             if (!localTheme)
             {
-                VERBOSE(VB_IMPORTANT, "ThemeUpdateChecker::checkForUpdate(): " 
-                        "Unable to create ThemeInfo for current theme");
+                LOG(VB_GENERAL, LOG_ERR,
+                    "ThemeUpdateChecker::checkForUpdate(): " 
+                    "Unable to create ThemeInfo for current theme");
                 return;
             }
 

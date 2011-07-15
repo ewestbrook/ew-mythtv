@@ -18,13 +18,7 @@ using namespace std;
 // MythTV headers
 #include "exitcodes.h"
 #include "compat.h"
-#include "mythcommandlineparser.h"
-
-#ifndef VERBOSE
-#define VB_IMPORTANT 0
-#define VERBOSE(LEVEL, MSG) \
-    do { cout << QString(MSG).toLocal8Bit().constData() << endl; } while (0)
-#endif
+#include "commandlineparser.h"
 
 const QString kMessage =
 "<mythmessage version=\"1\">\n"

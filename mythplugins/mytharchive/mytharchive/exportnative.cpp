@@ -82,7 +82,7 @@ bool ExportNative::Create(void)
 
     if (err)
     {
-        VERBOSE(VB_IMPORTANT, "Cannot load screen 'exportnative'");
+        LOG(VB_GENERAL, LOG_ERR, "Cannot load screen 'exportnative'");
         return false;
     }
 
@@ -436,9 +436,9 @@ void ExportNative::createConfigFile(const QString &filename)
     QFile f(filename);
     if (!f.open(QIODevice::WriteOnly))
     {
-        VERBOSE(VB_IMPORTANT, QString("ExportNative::createConfigFile: "
-                "Failed to open file for writing - %1")
-                .arg(filename.toLocal8Bit().constData()));
+        LOG(VB_GENERAL, LOG_ERR,
+            QString("ExportNative::createConfigFile: "
+                    "Failed to open file for writing - %1") .arg(filename));
         return;
     }
 
@@ -464,7 +464,10 @@ void ExportNative::runScript()
 
     createConfigFile(configDir + "/mydata.xml");
     commandline = "mytharchivehelper --nativearchive --outfile " + configDir + 
-                  "/mydata.xml --quiet";  // job file
+                  "/mydata.xml";  // job file
+    commandline += logPropagateArgs;
+    if (!logPropagateQuiet())
+        commandline += " --quiet";
     commandline += " > "  + logDir + "/progress.log 2>&1 &";            // Logs
 
     uint flags = kMSRunBackground | kMSDontBlockInputDevs | 

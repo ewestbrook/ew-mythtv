@@ -6,7 +6,6 @@
 #include <QRunnable>
 #include <QThreadPool>
 
-#include "mythverbose.h"
 #include "mythobservable.h"
 
 #include "mythscreenstack.h"
@@ -506,10 +505,10 @@ bool MythScreenType::ParseElement(
         QRect screenArea = GetMythMainWindow()->GetUIScreenRect();
 
         if (rect.x() == -1)
-            rectN.setX((screenArea.width() - rectN.width()) / 2);
+            rectN.moveLeft((screenArea.width() - rectN.width()) / 2);
 
         if (rect.y() == -1)
-            rectN.setY((screenArea.height() - rectN.height()) / 2);
+            rectN.moveTop((screenArea.height() - rectN.height()) / 2);
 
         SetArea(rectN);
 
@@ -539,7 +538,7 @@ void MythScreenType::CopyFrom(MythUIType *base)
     MythScreenType *st = dynamic_cast<MythScreenType *>(base);
     if (!st)
     {
-        VERBOSE(VB_IMPORTANT, "ERROR, bad parsing");
+        LOG(VB_GENERAL, LOG_ERR, "ERROR, bad parsing");
         return;
     }
 
@@ -559,7 +558,7 @@ void MythScreenType::CopyFrom(MythUIType *base)
  */
 void MythScreenType::CreateCopy(MythUIType *)
 {
-    VERBOSE(VB_IMPORTANT, "CreateCopy called on screentype - bad.");
+    LOG(VB_GENERAL, LOG_ERR, "CreateCopy called on screentype - bad.");
 }
 
 MythPainter* MythScreenType::GetPainter(void)

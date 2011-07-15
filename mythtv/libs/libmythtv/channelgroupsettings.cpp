@@ -2,14 +2,13 @@
 #include <iostream>
 
 // myth
-#include "mythverbose.h"
+#include "mythlogging.h"
 #include "mythdb.h"
 #include "channelutil.h"
 #include "channelgroup.h"
 #include "channelgroupsettings.h"
 
 #define LOC QString("Channel Group Settings: ")
-#define LOC_ERR QString("Channel Group Settings, Error: ")
 
 // Storage class for channel group editor in settings
 class ChannelGroupStorage : public Storage

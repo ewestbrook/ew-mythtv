@@ -60,7 +60,7 @@ using namespace std;
 #include "lcddevice.h"
 #include "langsettings.h"
 #include "mythtranslation.h"
-#include "mythcommandlineparser.h"
+#include "commandlineparser.h"
 #include "channelgroupsettings.h"
 
 #include "myththemedmenu.h"
@@ -138,7 +138,7 @@ namespace
             }
             else
             {
-                VERBOSE(VB_IMPORTANT,
+                LOG(VB_GENERAL, LOG_WARNING,
                         QObject::tr("Aggressive Parental Controls Warning: "
                                 "invalid password. An attempt to enter a "
                                 "MythVideo settings screen was prevented."));
@@ -222,7 +222,7 @@ namespace
         if (g_pUPnp)
         {
             // This takes a few seconds, so inform the user:
-            VERBOSE(VB_GENERAL, "Deleting UPnP client...");
+            LOG(VB_GENERAL, LOG_INFO, "Deleting UPnP client...");
             delete g_pUPnp;
             g_pUPnp = NULL;
         }
@@ -720,15 +720,15 @@ static void handleDVDMedia(MythMediaDevice *dvd)
             // Multiple DVD devices. Clear the old one so the user has to
             // select a disk to play (in MediaMonitor::defaultDVDdevice())
 
-            VERBOSE(VB_MEDIA, "MythVideo: Multiple DVD drives? Forgetting "
-                                + gDVDdevice);
+            LOG(VB_MEDIA, LOG_INFO,
+                "MythVideo: Multiple DVD drives? Forgetting " + gDVDdevice);
             gDVDdevice.clear();
         }
         else
         {
             gDVDdevice = newDevice;
-            VERBOSE(VB_MEDIA,
-                    "MythVideo: Storing DVD device " + gDVDdevice);
+            LOG(VB_MEDIA, LOG_INFO,
+                "MythVideo: Storing DVD device " + gDVDdevice);
         }
     else
     {
@@ -736,8 +736,8 @@ static void handleDVDMedia(MythMediaDevice *dvd)
 
         if (gDVDdevice.length() && gDVDdevice == newDevice)
         {
-            VERBOSE(VB_MEDIA,
-                    "MythVideo: Forgetting existing DVD " + gDVDdevice);
+            LOG(VB_MEDIA, LOG_INFO,
+                "MythVideo: Forgetting existing DVD " + gDVDdevice);
             gDVDdevice.clear();
         }
 
@@ -756,8 +756,8 @@ static void handleDVDMedia(MythMediaDevice *dvd)
             playDisc();
             break;
         default:
-            VERBOSE(VB_IMPORTANT, "mythdvd main.o: handleMedia() does not "
-                    "know what to do");
+            LOG(VB_GENERAL, LOG_ERR,
+                "mythdvd main.o: handleMedia() does not know what to do");
     }
 }
 
@@ -982,7 +982,7 @@ static void TVMenuCallback(void *data, QString &selection)
         if (fa->Create())
             mainStack->AddScreen(fa);
     }
-    if (sel == "manager")
+    else if (sel == "manager")
         RunVideoScreen(VideoDialog::DLG_MANAGER);
     else if (sel == "browser")
         RunVideoScreen(VideoDialog::DLG_BROWSER);
@@ -999,9 +999,9 @@ static void TVMenuCallback(void *data, QString &selection)
     else if (sel == "exiting_app")
         handleExit();
     else
-        VERBOSE(VB_IMPORTANT, "Unknown menu action: " + selection);
+        LOG(VB_GENERAL, LOG_ERR, "Unknown menu action: " + selection);
 
-    if (sel.left(9) == "settings ")
+    if (sel.left(9) == "settings " || sel == "video_settings_general")
     {
         GetMythUI()->RemoveCurrentLocation();
 
@@ -1031,21 +1031,20 @@ static void handleExit(void)
 static bool RunMenu(QString themedir, QString themename)
 {
     QByteArray tmp = themedir.toLocal8Bit();
-    menu = new MythThemedMenu(
-        QString(tmp.constData()), "mainmenu.xml",
-        GetMythMainWindow()->GetMainStack(), "mainmenu");
+    menu = new MythThemedMenu(QString(tmp.constData()), "mainmenu.xml",
+                              GetMythMainWindow()->GetMainStack(), "mainmenu");
 
     if (menu->foundTheme())
     {
-        VERBOSE(VB_IMPORTANT, QString("Found mainmenu.xml for theme '%1'")
+        LOG(VB_GENERAL, LOG_NOTICE, QString("Found mainmenu.xml for theme '%1'")
                 .arg(themename));
         menu->setCallback(TVMenuCallback, gContext);
         GetMythMainWindow()->GetMainStack()->AddScreen(menu);
         return true;
     }
 
-    VERBOSE(VB_IMPORTANT, QString("Couldn't find mainmenu.xml for theme '%1'")
-            .arg(themename));
+    LOG(VB_GENERAL, LOG_ERR,
+        QString("Couldn't find mainmenu.xml for theme '%1'") .arg(themename));
     delete menu;
     menu = NULL;
 
@@ -1106,6 +1105,8 @@ static int internal_play_media(const QString &mrl, const QString &plot,
     ProgramInfo *pginfo = new ProgramInfo(
         mrl, plot, title, subtitle, director, season, episode,
         lenMins, (year.toUInt()) ? year.toUInt() : 1900);
+
+    pginfo->SetProgramInfoType(pginfo->DiscoverProgramInfoType());
 
     int64_t pos = 0;
 
@@ -1174,9 +1175,9 @@ static bool resetTheme(QString themedir, const QString badtheme)
     if (badtheme == DEFAULT_UI_THEME)
         themename = FALLBACK_UI_THEME;
 
-    VERBOSE(VB_IMPORTANT,
-                QString("Overriding broken theme '%1' with '%2'")
-                .arg(badtheme).arg(themename));
+    LOG(VB_GENERAL, LOG_WARNING,
+        QString("Overriding broken theme '%1' with '%2'")
+            .arg(badtheme).arg(themename));
 
     gCoreContext->OverrideSettingForSession("Theme", themename);
     themedir = GetMythUI()->FindThemeDir(themename);
@@ -1196,7 +1197,7 @@ static int reloadTheme(void)
     QString themedir = GetMythUI()->FindThemeDir(themename);
     if (themedir.isEmpty())
     {
-        VERBOSE(VB_IMPORTANT, QString("Couldn't find theme '%1'")
+        LOG(VB_GENERAL, LOG_ERR, QString("Couldn't find theme '%1'")
                 .arg(themename));
         cleanup();
         return GENERIC_EXIT_NO_THEME;
@@ -1340,7 +1341,7 @@ static void InitJumpPoints(void)
 
 
 static void signal_USR1_handler(int){
-      VERBOSE(VB_GENERAL, "SIG USR1 received, reloading theme");
+      LOG(VB_GENERAL, LOG_NOTICE, "SIGUSR1 received, reloading theme");
       RemoteSendMessage("CLEAR_SETTINGS_CACHE");
       gCoreContext->ActivateSettingsCache(false);
       GetMythMainWindow()->JumpTo("Reload Theme");
@@ -1349,7 +1350,7 @@ static void signal_USR1_handler(int){
 
 static void signal_USR2_handler(int)
 {
-    VERBOSE(VB_GENERAL, "SIG USR2 received, restart LIRC handler");
+    LOG(VB_GENERAL, LOG_NOTICE, "SIGUSR2 received, restart LIRC handler");
     GetMythMainWindow()->StartLIRC();
 }
 
@@ -1377,7 +1378,6 @@ int main(int argc, char **argv)
     bool bPromptForBackend    = false;
     bool bBypassAutoDiscovery = false;
     bool upgradeAllowed = false;
-    int quiet = 0;
 
     MythFrontendCommandLineParser cmdline;
     if (!cmdline.Parse(argc, argv))
@@ -1404,37 +1404,16 @@ int main(int argc, char **argv)
     QApplication::setDesktopSettingsAware(false);
 #endif
     QApplication a(argc, argv);
-
     QCoreApplication::setApplicationName(MYTH_APPNAME_MYTHFRONTEND);
 
     QString pluginname;
 
     QFileInfo finfo(a.argv()[0]);
-
     QString binname = finfo.baseName();
 
-    if (cmdline.toBool("verbose"))
-        if (parse_verbose_arg(cmdline.toString("verbose")) ==
-                        GENERIC_EXIT_INVALID_CMDLINE)
-            return GENERIC_EXIT_INVALID_CMDLINE;
-
-    if (cmdline.toBool("quiet"))
-    {
-        quiet = cmdline.toUInt("quiet");
-        if (quiet > 1)
-        {
-            print_verbose_messages = VB_NONE;
-            parse_verbose_arg("none");
-        }
-    }
-
-    int facility = cmdline.GetSyslogFacility();
-    bool dblog = !cmdline.toBool("nodblog");
-
-    VERBOSE(VB_IMPORTANT, QString("%1 version: %2 [%3] www.mythtv.org")
-                            .arg(MYTH_APPNAME_MYTHFRONTEND)
-                            .arg(MYTH_SOURCE_PATH)
-                            .arg(MYTH_SOURCE_VERSION));
+    int retval;
+    if ((retval = cmdline.ConfigureLogging()) != GENERIC_EXIT_OK)
+        return retval;
 
     bool ResetSettings = false;
 
@@ -1463,9 +1442,6 @@ int main(int argc, char **argv)
 
     gContext = new MythContext(MYTH_BINARY_VERSION);
 
-    logfile = cmdline.GetLogFilePath();
-    logStart(logfile, quiet, facility, dblog);
-
     if (!cmdline.toBool("noupnp"))
     {
         g_pUPnp  = new MediaRenderer();
@@ -1476,25 +1452,13 @@ int main(int argc, char **argv)
         }
     }
 
-    // Override settings as early as possible to cover bootstrapped screens
-    // such as the language prompt
-    QMap<QString,QString> settingsOverride = cmdline.GetSettingsOverride();
-    if (settingsOverride.size())
-    {
-        QMap<QString, QString>::iterator it;
-        for (it = settingsOverride.begin(); it != settingsOverride.end(); ++it)
-        {
-            VERBOSE(VB_IMPORTANT, QString("Setting '%1' being forced to '%2'")
-                                          .arg(it.key()).arg(*it));
-            gCoreContext->OverrideSettingForSession(it.key(), *it);
-        }
-    }
-
     if (!gContext->Init(true, bPromptForBackend, bBypassAutoDiscovery))
     {
-        VERBOSE(VB_IMPORTANT, "Failed to init MythContext, exiting.");
+        LOG(VB_GENERAL, LOG_ERR, "Failed to init MythContext, exiting.");
         return GENERIC_EXIT_NO_MYTHCONTEXT;
     }
+
+    cmdline.ApplySettingsOverride();
 
     if (!GetMythDB()->HaveSchema())
     {
@@ -1577,9 +1541,6 @@ int main(int argc, char **argv)
 
     setuid(getuid());
 
-    VERBOSE(VB_IMPORTANT,
-            QString("Enabled verbose msgs: %1").arg(verboseString));
-
     LCD::SetupLCD();
     if (LCD *lcd = LCD::Get())
         lcd->setupLEDs(RemoteGetRecordingMask);
@@ -1591,7 +1552,7 @@ int main(int argc, char **argv)
     QString themedir = GetMythUI()->FindThemeDir(themename);
     if (themedir.isEmpty())
     {
-        VERBOSE(VB_IMPORTANT, QString("Couldn't find theme '%1'")
+        LOG(VB_GENERAL, LOG_ERR, QString("Couldn't find theme '%1'")
                 .arg(themename));
         return GENERIC_EXIT_NO_THEME;
     }
@@ -1602,7 +1563,7 @@ int main(int argc, char **argv)
     themedir = GetMythUI()->FindThemeDir(themename);
     if (themedir.isEmpty())
     {
-        VERBOSE(VB_IMPORTANT, QString("Couldn't find theme '%1'")
+        LOG(VB_GENERAL, LOG_ERR, QString("Couldn't find theme '%1'")
                 .arg(themename));
         return GENERIC_EXIT_NO_THEME;
     }
@@ -1622,8 +1583,8 @@ int main(int argc, char **argv)
 
     if (!UpgradeTVDatabaseSchema(upgradeAllowed))
     {
-        VERBOSE(VB_IMPORTANT,
-                "Couldn't upgrade database to new schema, exiting.");
+        LOG(VB_GENERAL, LOG_ERR,
+            "Couldn't upgrade database to new schema, exiting.");
         return GENERIC_EXIT_DB_OUTOFDATE;
     }
 
@@ -1667,11 +1628,14 @@ int main(int argc, char **argv)
     NetworkControl *networkControl = NULL;
     if (gCoreContext->GetNumSetting("NetworkControlEnabled", 0))
     {
-        int networkPort = gCoreContext->GetNumSetting("NetworkControlPort", 6545);
+        int networkPort =
+            gCoreContext->GetNumSetting("NetworkControlPort", 6545);
         networkControl = new NetworkControl();
-        if (!networkControl->listen(QHostAddress(gCoreContext->MythHostAddressAny()),networkPort))
-            VERBOSE(VB_IMPORTANT,
-                    QString("NetworkControl failed to bind to port %1.")
+
+        if (!networkControl->listen(gCoreContext->MythHostAddressAny(),
+                                    networkPort))
+            LOG(VB_GENERAL, LOG_ERR,
+                QString("NetworkControl failed to bind to port %1.")
                     .arg(networkPort));
     }
 

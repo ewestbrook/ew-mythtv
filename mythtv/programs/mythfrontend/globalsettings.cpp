@@ -23,7 +23,7 @@
 #include "mythconfig.h"
 #include "mythcorecontext.h"
 #include "mythdbcon.h"
-#include "mythverbose.h"
+#include "mythlogging.h"
 #include "dbsettings.h"
 #include "mythtranslation.h"
 #include "iso639.h"
@@ -204,6 +204,17 @@ static HostComboBox *AutoCommercialSkip()
                     "or by the mythcommflag program, or just notify that a "
                     "commercial has been detected."));
     return gc;
+}
+
+static GlobalCheckBox *AutoMetadataLookup()
+{
+    GlobalCheckBox *bc = new GlobalCheckBox("AutoMetadataLookup");
+    bc->setLabel(QObject::tr("Run metadata lookup"));
+    bc->setValue(true);
+    bc->setHelpText(QObject::tr("This is the default value used for the "
+                    "automatic metadata lookup setting when a new "
+                    "scheduled recording is created."));
+    return bc;
 }
 
 static GlobalCheckBox *AutoCommercialFlag()
@@ -983,16 +994,16 @@ void PlaybackProfileConfig::Save(void)
     bool ok = VideoDisplayProfile::DeleteDB(groupid, del_items);
     if (!ok)
     {
-        VERBOSE(VB_IMPORTANT,
-                "PlaybackProfileConfig::Save() -- failed to delete items");
+        LOG(VB_GENERAL, LOG_ERR,
+            "PlaybackProfileConfig::Save() -- failed to delete items");
         return;
     }
 
     ok = VideoDisplayProfile::SaveDB(groupid, items);
     if (!ok)
     {
-        VERBOSE(VB_IMPORTANT,
-                "PlaybackProfileConfig::Save() -- failed to save items");
+        LOG(VB_GENERAL, LOG_ERR,
+            "PlaybackProfileConfig::Save() -- failed to save items");
         return;
     }
 }
@@ -1005,7 +1016,7 @@ void PlaybackProfileConfig::pressed(QString cmd)
         PlaybackProfileItemConfig itemcfg(items[i]);
 
         if (itemcfg.exec() != kDialogCodeAccepted)
-            VERBOSE(VB_IMPORTANT, QString("edit #%1").arg(i) + " rejected");
+            LOG(VB_GENERAL, LOG_ERR, QString("edit #%1").arg(i) + " rejected");
 
         InitLabel(i);
         needs_save = true;
@@ -1025,7 +1036,7 @@ void PlaybackProfileConfig::pressed(QString cmd)
         PlaybackProfileItemConfig itemcfg(item);
 
         if (itemcfg.exec() != kDialogCodeAccepted)
-            VERBOSE(VB_IMPORTANT, "addentry rejected");
+            LOG(VB_GENERAL, LOG_ERR, "addentry rejected");
 
         items.push_back(item);
         InitUI();
@@ -1170,7 +1181,9 @@ PlaybackProfileConfigs::PlaybackProfileConfigs(const QString &str) :
 
 PlaybackProfileConfigs::~PlaybackProfileConfigs()
 {
-    //VERBOSE(VB_IMPORTANT, "~PlaybackProfileConfigs()");
+#if 0
+    LOG(VB_GENERAL, LOG_DEBUG, "~PlaybackProfileConfigs()");
+#endif
 }
 
 void PlaybackProfileConfigs::btnPress(QString cmd)
@@ -1811,12 +1824,12 @@ static HostComboBox *AdjustFill()
 {
     HostComboBox *gc = new HostComboBox("AdjustFill");
     gc->setLabel(QObject::tr("Zoom"));
+    for (int m = kAdjustFill_Off; m < kAdjustFill_END; ++m)
+        gc->addSelection(toString((AdjustFillMode)m), QString::number(m));
     gc->addSelection(toString(kAdjustFill_AutoDetect_DefaultOff),
                      QString::number(kAdjustFill_AutoDetect_DefaultOff));
     gc->addSelection(toString(kAdjustFill_AutoDetect_DefaultHalf),
                      QString::number(kAdjustFill_AutoDetect_DefaultHalf));
-    for (int m = kAdjustFill_Off; m < kAdjustFill_END; ++m)
-        gc->addSelection(toString((AdjustFillMode)m), QString::number(m));
     gc->setHelpText(QObject::tr(
                         "When enabled, these will apply a predefined "
                         "zoom to all video playback in MythTV."));
@@ -3552,12 +3565,13 @@ GeneralSettings::GeneralSettings()
 
     VerticalConfigurationGroup* autogrp0 =
         new VerticalConfigurationGroup(false, false, true, true);
+    autogrp0->addChild(AutoMetadataLookup());
     autogrp0->addChild(AutoCommercialFlag());
     autogrp0->addChild(AutoTranscode());
-    autogrp0->addChild(AutoRunUserJob(1));
 
     VerticalConfigurationGroup* autogrp1 =
         new VerticalConfigurationGroup(false, false, true, true);
+    autogrp0->addChild(AutoRunUserJob(1));
     autogrp1->addChild(AutoRunUserJob(2));
     autogrp1->addChild(AutoRunUserJob(3));
     autogrp1->addChild(AutoRunUserJob(4));

@@ -35,8 +35,10 @@ bool HttpConfig::ProcessRequest(HttpWorkerThread*, HTTPRequest *request)
     if (!request)
         return false;
 
-    VERBOSE(VB_UPNP, QString("HttpConfig::ProcessRequest(): m_sBaseURL: '%1',"
-            "m_sMethod: '%2'").arg(request->m_sBaseUrl).arg(request->m_sMethod));
+    LOG(VB_UPNP, LOG_INFO,
+        QString("HttpConfig::ProcessRequest(): m_sBaseURL: '%1',"
+                "m_sMethod: '%2'")
+            .arg(request->m_sBaseUrl).arg(request->m_sMethod));
     if (!request->m_sBaseUrl.startsWith("/Config"))
     {
         return false;
@@ -187,13 +189,9 @@ bool HttpConfig::ProcessRequest(HttpWorkerThread*, HTTPRequest *request)
                         dir = "";
                     QString path =
                             gCoreContext->GenMythURL(host,
-                                                     0,
+                                                     port,
                                                      dir + parts[1],
                                                      storageGroup);
-//QString MythCoreContext::GenMythURL(QString host, int port, QString path, QString storageGroup) 
-//
-//                        QString("myth://%1@%2%3%4").arg(storageGroup)
-//                                .arg(host).arg(dir).arg(parts[1]);
                     if (entry.startsWith("sgdir::"))
                     {
                         os << "    <li class=\"directory collapsed\"><a href=\"#\" rel=\""

@@ -1,6 +1,7 @@
 // C/C++
 #include <vector>
 #include <algorithm>
+#include <functional>
 using namespace std;
 
 // Qt
@@ -144,7 +145,7 @@ bool ProgLister::Create()
 
     if (err)
     {
-        VERBOSE(VB_IMPORTANT, "Cannot load screen 'programlist'");
+        LOG(VB_GENERAL, LOG_ERR, "Cannot load screen 'programlist'");
         return false;
     }
 
@@ -554,10 +555,8 @@ bool ProgLister::PowerStringToSQL(
     QStringList field = qphrase.split(':');
     if (field.size() != 6)
     {
-        VERBOSE(VB_IMPORTANT, LOC_ERR +
-                "Power search should have 6 fields," +
-                QString("\n\t\t\tnot %1 (%2)")
-                .arg(field.size()).arg(qphrase));
+        LOG(VB_GENERAL, LOG_ERR, LOC + "Power search should have 6 fields," +
+            QString("\n\t\t\tnot %1 (%2)") .arg(field.size()).arg(qphrase));
         return false;
     };
 
@@ -1665,8 +1664,8 @@ void ProgLister::customEvent(QEvent *event)
                 qVariantValue<RecordingRule *>(dce->GetData());
             if (record && buttonnum > 0 && !record->Delete())
             {
-                VERBOSE(VB_IMPORTANT,
-                        LOC_ERR + "Failed to delete recording rule");
+                LOG(VB_GENERAL, LOG_ERR, LOC +
+                    "Failed to delete recording rule");
             }
             if (record)
                 delete record;

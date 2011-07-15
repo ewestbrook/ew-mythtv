@@ -34,7 +34,7 @@
 #define LCD_VERSION_5 2
 
 #define LCD_RECSTATUS_TIME  10000
-#define LCD_TIME_TIME       5000
+#define LCD_TIME_TIME       3000
 #define LCD_SCROLLLIST_TIME 2000
 
 int lcdStartCol = LCD_START_COL;
@@ -47,7 +47,8 @@ LCDProcClient::LCDProcClient(LCDServer *lparent) : QObject(NULL)
     // communications with the LDCd daemon.
 
     if (debug_level > 0)
-        VERBOSE(VB_GENERAL, "LCDProcClient: An LCDProcClient object now exists");
+        LOG(VB_GENERAL, LOG_INFO,
+            "LCDProcClient: An LCDProcClient object now exists");
 
     socket = new QTcpSocket(this);
     connect(socket, SIGNAL(error(QAbstractSocket::SocketError)),
@@ -199,7 +200,8 @@ void LCDProcClient::sendToServer(const QString &someText)
 
         // Ack, connection to server has been severed try to re-establish the
         // connection
-        VERBOSE(VB_IMPORTANT, "LCDProcClient: Connection to LCDd died unexpectedly.");
+        LOG(VB_GENERAL, LOG_ERR,
+            "LCDProcClient: Connection to LCDd died unexpectedly.");
         return;
     }
 
@@ -211,7 +213,8 @@ void LCDProcClient::sendToServer(const QString &someText)
     if (connected)
     {
         if (debug_level > 9)
-            VERBOSE(VB_NETWORK, "LCDProcClient: Sending to Server: " + someText);
+            LOG(VB_NETWORK, LOG_INFO,
+                "LCDProcClient: Sending to Server: " + someText);
 
         // Just stream the text out the socket
 
@@ -292,23 +295,25 @@ void LCDProcClient::setHeartbeat (const QString &screen, bool onoff)
 void LCDProcClient::checkConnections()
 {
     if (debug_level > 0)
-        VERBOSE(VB_GENERAL, "LCDProcClient: checking connections");
+        LOG(VB_GENERAL, LOG_INFO, "LCDProcClient: checking connections");
 
     // check connection to mythbackend
     if (!gCoreContext->IsConnectedToMaster())
     {
         if (debug_level > 0)
-           VERBOSE(VB_GENERAL, "LCDProcClient: connecting to master server");
+            LOG(VB_GENERAL, LOG_INFO,
+                "LCDProcClient: connecting to master server");
         if (!gCoreContext->ConnectToMasterServer(false))
-            VERBOSE(VB_IMPORTANT, "LCDProcClient: connecting to master server "
-                                  "failed");
+            LOG(VB_GENERAL, LOG_ERR,
+                "LCDProcClient: connecting to master server failed");
     }
 
     //check connection to LCDProc server
     if (socket->state() != QAbstractSocket::ConnectedState)
     {
         if (debug_level > 0)
-           VERBOSE(VB_GENERAL, "LCDProcClient: connecting to LCDProc server");
+            LOG(VB_GENERAL, LOG_INFO,
+                "LCDProcClient: connecting to LCDProc server");
 
         lcd_ready = false;
         connected = false;
@@ -343,8 +348,8 @@ void LCDProcClient::serverSendingData()
         if (debug_level > 0)
         // Make debugging be less noisy
             if (lineFromServer != "success")
-                VERBOSE(VB_NETWORK, "LCDProcClient: Received from server: " +
-                       lineFromServer);
+                LOG(VB_NETWORK, LOG_INFO,
+                    "LCDProcClient: Received from server: " + lineFromServer);
 
         aList = lineFromServer.split(" ");
         if (aList.first() == "connect")
@@ -357,8 +362,9 @@ void LCDProcClient::serverSendingData()
             it++;
             if ((*it) != "LCDproc")
             {
-                VERBOSE(VB_IMPORTANT, "LCDProcClient: WARNING: Second parameter "
-                                      "returned from LCDd was not \"LCDproc\"");
+                LOG(VB_GENERAL, LOG_WARNING,
+                    "LCDProcClient: WARNING: Second parameter "
+                    "returned from LCDd was not \"LCDproc\"");
             }
 
             // Skip through some stuff
@@ -399,9 +405,10 @@ void LCDProcClient::serverSendingData()
 
         if (aList.first() == "huh?")
         {
-            VERBOSE(VB_IMPORTANT, "LCDProcClient: WARNING: Something is getting"
-                                  "passed to LCDd that it doesn't understand");
-            VERBOSE(VB_IMPORTANT, "last command: " + last_command);
+            LOG(VB_GENERAL, LOG_WARNING,
+                "LCDProcClient: WARNING: Something is getting"
+                "passed to LCDd that it doesn't understand");
+            LOG(VB_GENERAL, LOG_WARNING, "last command: " + last_command);
         }
         else if (aList.first() == "key")
         {
@@ -431,6 +438,10 @@ void LCDProcClient::init()
     if (gCoreContext->GetSetting("LCDBigClock", "1") == "1")
     {
         // Big Clock - spans multiple lines
+        sendToServer("widget_add Time rec1 string");
+        sendToServer("widget_add Time rec2 string");
+        sendToServer("widget_add Time rec3 string");
+        sendToServer("widget_add Time recCnt string");
         sendToServer("widget_add Time d0 num");
         sendToServer("widget_add Time d1 num");
         sendToServer("widget_add Time sep num");
@@ -498,6 +509,7 @@ void LCDProcClient::init()
     sendToServer("widget_add RecStatus textWidget1 string");
     sendToServer("widget_add RecStatus textWidget2 string");
     sendToServer("widget_add RecStatus textWidget3 string");
+    sendToServer("widget_add RecStatus textWidget4 string");
     sendToServer("widget_add RecStatus progressBar hbar");
 
     lcd_ready = true;
@@ -702,46 +714,59 @@ void LCDProcClient::describeServer()
 {
     if (debug_level > 0)
     {
-        VERBOSE(VB_GENERAL,
-            QString("LCDProcClient: The server is %1x%2 with each cell being %3x%4." )
+        LOG(VB_GENERAL, LOG_INFO,
+            QString("LCDProcClient: The server is %1x%2 with each cell "
+                    "being %3x%4.")
             .arg(lcdWidth).arg(lcdHeight).arg(cellWidth).arg(cellHeight));
-        VERBOSE(VB_GENERAL,
+        LOG(VB_GENERAL, LOG_INFO,
             QString("LCDProcClient: LCDd version %1, protocol version %2.")
             .arg(serverVersion).arg(protocolVersion));
     }
 
     if (debug_level > 1)
     {
-        VERBOSE(VB_GENERAL, QString("LCDProcClient: MythTV LCD settings:"));
-        VERBOSE(VB_GENERAL, QString("LCDProcClient: - showmusic      : %1")
-            .arg(lcd_showmusic));
-        VERBOSE(VB_GENERAL, QString("LCDProcClient: - showmusicitems : %1")
-            .arg(lcd_showmusic_items));
-        VERBOSE(VB_GENERAL, QString("LCDProcClient: - showtime       : %1")
-            .arg(lcd_showtime));
-        VERBOSE(VB_GENERAL, QString("LCDProcClient: - showchannel    : %1")
-            .arg(lcd_showchannel));
-        VERBOSE(VB_GENERAL, QString("LCDProcClient: - showrecstatus  : %1")
-            .arg(lcd_showrecstatus));
-        VERBOSE(VB_GENERAL, QString("LCDProcClient: - showgeneric    : %1")
-            .arg(lcd_showgeneric));
-        VERBOSE(VB_GENERAL, QString("LCDProcClient: - showvolume     : %1")
-            .arg(lcd_showvolume));
-        VERBOSE(VB_GENERAL, QString("LCDProcClient: - showmenu       : %1")
-            .arg(lcd_showmenu));
-        VERBOSE(VB_GENERAL, QString("LCDProcClient: - backlighton    : %1")
-            .arg(lcd_backlighton));
-        VERBOSE(VB_GENERAL, QString("LCDProcClient: - heartbeaton    : %1")
-            .arg(lcd_heartbeaton));
-        VERBOSE(VB_GENERAL, QString("LCDProcClient: - popuptime      : %1")
-            .arg(lcd_popuptime));
+        LOG(VB_GENERAL, LOG_INFO,
+            QString("LCDProcClient: MythTV LCD settings:"));
+        LOG(VB_GENERAL, LOG_INFO,
+            QString("LCDProcClient: - showmusic      : %1")
+                .arg(lcd_showmusic));
+        LOG(VB_GENERAL, LOG_INFO,
+            QString("LCDProcClient: - showmusicitems : %1")
+                .arg(lcd_showmusic_items));
+        LOG(VB_GENERAL, LOG_INFO,
+            QString("LCDProcClient: - showtime       : %1")
+                .arg(lcd_showtime));
+        LOG(VB_GENERAL, LOG_INFO,
+            QString("LCDProcClient: - showchannel    : %1")
+                .arg(lcd_showchannel));
+        LOG(VB_GENERAL, LOG_INFO,
+            QString("LCDProcClient: - showrecstatus  : %1")
+                .arg(lcd_showrecstatus));
+        LOG(VB_GENERAL, LOG_INFO,
+            QString("LCDProcClient: - showgeneric    : %1")
+                .arg(lcd_showgeneric));
+        LOG(VB_GENERAL, LOG_INFO,
+            QString("LCDProcClient: - showvolume     : %1")
+                .arg(lcd_showvolume));
+        LOG(VB_GENERAL, LOG_INFO,
+            QString("LCDProcClient: - showmenu       : %1")
+                .arg(lcd_showmenu));
+        LOG(VB_GENERAL, LOG_INFO,
+            QString("LCDProcClient: - backlighton    : %1")
+                .arg(lcd_backlighton));
+        LOG(VB_GENERAL, LOG_INFO,
+            QString("LCDProcClient: - heartbeaton    : %1")
+                .arg(lcd_heartbeaton));
+        LOG(VB_GENERAL, LOG_INFO,
+            QString("LCDProcClient: - popuptime      : %1")
+                    .arg(lcd_popuptime));
     }
 }
 
 void LCDProcClient::veryBadThings(QAbstractSocket::SocketError error)
 {
     // Deal with failures to connect and inabilities to communicate
-    VERBOSE(VB_IMPORTANT, QString("Could not connect to LCDd: %1")
+    LOG(VB_GENERAL, LOG_ERR, QString("Could not connect to LCDd: %1")
             .arg(socket->errorString()));
     socket->close();
 }
@@ -768,7 +793,7 @@ void LCDProcClient::stopAll()
     // false is the connection died and we're trying to re-establish the
     // connection
     if (debug_level > 1)
-        VERBOSE(VB_GENERAL, "LCDProcClient: stopAll");
+        LOG(VB_GENERAL, LOG_INFO, "LCDProcClient: stopAll");
 
     if (lcd_ready)
     {
@@ -1027,7 +1052,8 @@ void LCDProcClient::scrollWidgets()
     if (len == 0)
     {
         // Shouldn't happen, but....
-        VERBOSE(VB_IMPORTANT, "LCDProcClient::scrollWidgets called without scrollable items");
+        LOG(VB_GENERAL, LOG_ERR,
+            "LCDProcClient::scrollWidgets called without scrollable items");
         scrollWTimer->stop();
         return;
     }
@@ -1828,9 +1854,26 @@ void LCDProcClient::dobigclock (bool init)
     }
     outputRightText("Time", aString, "ampm", lcdHeight - 1);
 
+    if (isRecording)
+    {
+         outputLeftText("Time","R","rec1",1);
+         outputLeftText("Time","E","rec2",2);
+         outputLeftText("Time","C","rec3",3);
+         aString = QString::number((int) tunerList.size());
+         outputLeftText("Time",aString,"recCnt",4);
+
+    }
+    else
+    {
+         outputLeftText("Time"," ","rec1",1);
+         outputLeftText("Time"," ","rec2",2);
+         outputLeftText("Time"," ","rec3",3);
+         outputLeftText("Time"," ","recCnt",4);
+    }
+
     // Add Hour 10's Digit
     aString = "widget_set Time d0 ";
-    aString += QString::number(lcdWidth/2 - 6 - xoffset) + " ";
+    aString += QString::number(lcdWidth/2 - 5 - xoffset) + " ";
     if (toffset == 0)
         aString += "11";
     else
@@ -1839,25 +1882,25 @@ void LCDProcClient::dobigclock (bool init)
 
     // Add Hour 1's Digit
     aString = "widget_set Time d1 ";
-    aString += QString::number(lcdWidth/2 - 3 - xoffset) + " ";
+    aString += QString::number(lcdWidth/2 - 2 - xoffset) + " ";
     aString += time.at(0 + toffset);
     sendToServer(aString);
 
     // Add the Colon
     aString = "widget_set Time sep ";
-    aString += QString::number(lcdWidth/2 - xoffset);
+    aString += QString::number(lcdWidth/2 + 1 - xoffset);
     aString += " 10";   // 10 means: colon
     sendToServer(aString);
 
     // Add Minute 10's Digit
     aString = "widget_set Time d2 ";
-    aString += QString::number(lcdWidth/2 + 1 - xoffset) + " ";
+    aString += QString::number(lcdWidth/2 + 2 - xoffset) + " ";
     aString += time.at(2 + toffset);
     sendToServer(aString);
 
     // Add Minute 1's Digit
     aString = "widget_set Time d3 ";
-    aString += QString::number(lcdWidth/2 + 4 - xoffset) + " ";
+    aString += QString::number(lcdWidth/2 + 5 - xoffset) + " ";
     aString += time.at(3 + toffset);
     sendToServer(aString);
 
@@ -1944,8 +1987,10 @@ void LCDProcClient::outputRecStatus(void)
         isTimeVisible = false;
         activeScreen = "RecStatus";
     }
-    else
+    else if (lcdTunerNo > (int) tunerList.size() - 1)
     {
+        lcdTunerNo = 0;
+
         // switch to the time screen
         setPriority("Time", MEDIUM);
         setPriority("RecStatus", LOW);
@@ -1960,7 +2005,7 @@ void LCDProcClient::outputRecStatus(void)
         isTimeVisible = true;
 
         return;
-    }
+    }  
 
     QString aString, status;
     QStringList list;
@@ -1970,27 +2015,38 @@ void LCDProcClient::outputRecStatus(void)
     scrollListItems.clear();
     if (lcdHeight >= 4)
     {
-        outputCenteredText("RecStatus", tr("RECORDING"), "textWidget1", 1);
+        //  LINE 1 - "R" + Channel
+        status = tr("R ");
+        status += tuner.channame;
+        outputLeftText("RecStatus", status, "textWidget1", 1);
 
-        status = tuner.title;
-        if (!tuner.subtitle.isEmpty())
-            status += " (" + tuner.subtitle + ")";
+        //  LINE 2 - "E" + Program Title
+        status = tr("E ");
+        status += tuner.title;
+        outputLeftText("RecStatus", status, "textWidget2", 2);
+        //list = formatScrollerText(status);
+        //assignScrollingList(list, "RecStatus", "textWidget2", 2);
 
-        list = formatScrollerText(status);
-        assignScrollingList(list, "RecStatus", "textWidget2", 2);
+        //  LINE 3 - "C" + Program Subtitle
+        status = tr("C ");
+        status += tuner.subtitle;
+        outputLeftText("RecStatus", status, "textWidget3", 3);
+        //list = formatScrollerText(status);
+        //assignScrollingList(list, "RecStatus", "textWidget3", 3);
 
-        status = tuner.startTime.toString("hh:mm") + " to " +
-                tuner.endTime.toString("hh:mm");
-        outputCenteredText("RecStatus", status, "textWidget3", 3);
+        //  LINE 4 - hh:mm-hh:mm + Progress Bar
+        status = tuner.startTime.toString("hh:mm") + "-" +
+                 tuner.endTime.toString("hh:mm");
+        outputLeftText("RecStatus", status, "textWidget4", 4);
 
         int length = tuner.startTime.secsTo(tuner.endTime);
         int delta = tuner.startTime.secsTo(QDateTime::currentDateTime());
         double rec_progress = (double) delta / length;
 
-        aString = "widget_set RecStatus progressBar 1 ";
+        aString = "widget_set RecStatus progressBar 13 ";
         aString += QString::number(lcdHeight);
         aString += " ";
-        aString += QString::number((int)rint(rec_progress * lcdWidth *
+        aString += QString::number((int)rint(rec_progress * (lcdWidth - 13) *
                                 cellWidth));
         sendToServer(aString);
 
@@ -2004,7 +2060,7 @@ void LCDProcClient::outputRecStatus(void)
             status += "|(" + tuner.subtitle + ")";
 
         status += "|" + tuner.startTime.toString("hh:mm") + " to " +
-                tuner.endTime.toString("hh:mm");
+                  tuner.endTime.toString("hh:mm");
 
         list = formatScrollerText(status);
         assignScrollingList(list, "RecStatus", "textWidget1", 1);
@@ -2032,11 +2088,7 @@ void LCDProcClient::outputRecStatus(void)
         listTime = LCD_TIME_TIME;
 
     recStatusTimer->start(listTime);
-
-    if (lcdTunerNo < (int) tunerList.size() - 1)
-        lcdTunerNo++;
-    else
-        lcdTunerNo = 0;
+    lcdTunerNo++;
 }
 
 void LCDProcClient::outputScrollerText(QString theScreen, QString theText,
@@ -2220,7 +2272,7 @@ void LCDProcClient::switchToTime()
     stopAll();
 
     if (debug_level > 1)
-        VERBOSE(VB_GENERAL, "LCDProcClient: switchToTime");
+        LOG(VB_GENERAL, LOG_INFO, "LCDProcClient: switchToTime");
 
     startTime();
 }
@@ -2233,7 +2285,7 @@ void LCDProcClient::switchToMusic(const QString &artist, const QString &album, c
     stopAll();
 
     if (debug_level > 1)
-        VERBOSE(VB_GENERAL, "LCDProcClient: switchToMusic") ;
+        LOG(VB_GENERAL, LOG_INFO, "LCDProcClient: switchToMusic") ;
 
     startMusic(artist, album, track);
 }
@@ -2246,7 +2298,7 @@ void LCDProcClient::switchToChannel(QString channum, QString title, QString subt
     stopAll();
 
     if (debug_level > 1)
-        VERBOSE(VB_GENERAL, "LCDProcClient: switchToChannel");
+        LOG(VB_GENERAL, LOG_INFO, "LCDProcClient: switchToChannel");
 
     startChannel(channum, title, subtitle);
 }
@@ -2258,7 +2310,7 @@ void LCDProcClient::switchToMenu(QList<LCDMenuItem> *menuItems, QString app_name
         return;
 
     if (debug_level > 1)
-        VERBOSE(VB_GENERAL, "LCDProcClient: switchToMenu");
+        LOG(VB_GENERAL, LOG_INFO, "LCDProcClient: switchToMenu");
 
     startMenu(menuItems, app_name, popMenu);
 }
@@ -2270,7 +2322,7 @@ void LCDProcClient::switchToGeneric(QList<LCDTextItem> *textItems)
     stopAll();
 
     if (debug_level > 1)
-        VERBOSE(VB_GENERAL, "LCDProcClient: switchToGeneric");
+        LOG(VB_GENERAL, LOG_INFO, "LCDProcClient: switchToGeneric");
 
     startGeneric(textItems);
 }
@@ -2283,7 +2335,7 @@ void LCDProcClient::switchToVolume(QString app_name)
     stopAll();
 
     if (debug_level > 1)
-        VERBOSE(VB_GENERAL, "LCDProcClient: switchToVolume");
+        LOG(VB_GENERAL, LOG_INFO, "LCDProcClient: switchToVolume");
 
     startVolume(app_name);
 }
@@ -2296,13 +2348,13 @@ void LCDProcClient::switchToNothing()
     stopAll();
 
     if (debug_level > 1)
-        VERBOSE(VB_GENERAL, "LCDProcClient: switchToNothing");
+        LOG(VB_GENERAL, LOG_INFO, "LCDProcClient: switchToNothing");
 }
 
 void LCDProcClient::shutdown()
 {
     if (debug_level > 1)
-        VERBOSE(VB_GENERAL, "LCDProcClient: shutdown");
+        LOG(VB_GENERAL, LOG_INFO, "LCDProcClient: shutdown");
 
     stopAll();
 
@@ -2348,6 +2400,10 @@ void LCDProcClient::removeWidgets()
 
     if (lcd_bigclock)
     {
+        sendToServer("widget_del Time rec1");
+        sendToServer("widget_del Time rec2");
+        sendToServer("widget_del Time rec3");
+        sendToServer("widget_del Time recCnt");
         sendToServer("widget_del Time d0");
         sendToServer("widget_del Time d1");
         sendToServer("widget_del Time sep");
@@ -2367,14 +2423,16 @@ void LCDProcClient::removeWidgets()
     sendToServer("widget_del RecStatus textWidget1");
     sendToServer("widget_del RecStatus textWidget2");
     sendToServer("widget_del RecStatus textWidget3");
+    sendToServer("widget_del RecStatus textWidget4");
     sendToServer("widget_del RecStatus progressBar");
 }
 
 LCDProcClient::~LCDProcClient()
 {
     if (debug_level > 1)
-        VERBOSE(VB_GENERAL, "LCDProcClient: An LCD device is being snuffed out"
-                            "of existence (~LCDProcClient() was called)");
+        LOG(VB_GENERAL, LOG_INFO,
+            "LCDProcClient: An LCD device is being snuffed out"
+            "of existence (~LCDProcClient() was called)");
 
     if (socket)
     {
@@ -2400,7 +2458,8 @@ void LCDProcClient::customEvent(QEvent *e)
             if (lcd_showrecstatus && !updateRecInfoTimer->isActive())
             {
                if (debug_level > 1)
-                   VERBOSE(VB_GENERAL, "LCDProcClient: Received recording list change");
+                   LOG(VB_GENERAL, LOG_INFO,
+                       "LCDProcClient: Received recording list change");
 
                 // we can't query the backend from inside the customEvent
                 // so fire the recording list update from a timer
@@ -2419,9 +2478,10 @@ void LCDProcClient::updateRecordingList(void)
     {
         if (!gCoreContext->ConnectToMasterServer(false))
         {
-            VERBOSE(VB_IMPORTANT, "LCDProcClient: Cannot get recording status "
-                                  "- is the master server running?\n\t\t\t"
-                                  "Will retry in 30 seconds");
+            LOG(VB_GENERAL, LOG_ERR,
+                "LCDProcClient: Cannot get recording status "
+                "- is the master server running?\n\t\t\t"
+                "Will retry in 30 seconds");
             QTimer::singleShot(30 * 1000, this, SLOT(updateRecordingList()));
 
             // If we can't get the recording status and we're showing

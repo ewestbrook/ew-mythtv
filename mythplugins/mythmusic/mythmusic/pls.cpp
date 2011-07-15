@@ -9,6 +9,7 @@
 // c
 //#include <assert.h>
 //#include "iostream"
+#include <string>
 
 // qt
 #include <QPair>
@@ -16,7 +17,7 @@
 #include <QMap>
 
 // mythtv
-#include <mythverbose.h>
+#include <mythlogging.h>
 
 // mythmusic
 #include "pls.h"
@@ -75,7 +76,9 @@ class CfgReader
 
                     if (!end || nl < end)
                     {
-                        VERBOSE(VB_IMPORTANT, QString("CfgReader:: Badly formatted section, line %1").arg(line));
+                        LOG(VB_GENERAL, LOG_ERR,
+                            QString("CfgReader:: Badly formatted section, "
+                                    "line %1").arg(line));
                         done = true;
                     }
 
@@ -88,7 +91,9 @@ class CfgReader
                     current_section = std::string(ptr, end - ptr).c_str();
                     if (current_section.length() == 0)
                     {
-                        VERBOSE(VB_IMPORTANT, QString("CfgReader:: Badly formatted section, line %1").arg(line));
+                        LOG(VB_GENERAL, LOG_ERR,
+                            QString("CfgReader:: Badly formatted section, "
+                                    "line %1").arg(line));
                         done = true;
                     }
                     ptr = end + 1;
@@ -105,7 +110,9 @@ class CfgReader
 
                         if (!eq || nl < eq) 
                         {
-                            VERBOSE(VB_IMPORTANT, QString("CfgReader:: Badly formatted line %1").arg(line));
+                            LOG(VB_GENERAL, LOG_ERR,
+                                QString("CfgReader:: Badly formatted line %1")
+                                    .arg(line));
                             done = true;
                         }
                         else
@@ -118,7 +125,9 @@ class CfgReader
                     }
                     else
                     {
-                        VERBOSE(VB_IMPORTANT, QString("CfgReader:: Badly formatted line %1").arg(line));
+                        LOG(VB_GENERAL, LOG_ERR,
+                            QString("CfgReader:: Badly formatted line %1")
+                                .arg(line));
                         done = true;
                     }
                     break;

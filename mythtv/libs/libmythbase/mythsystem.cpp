@@ -25,7 +25,7 @@
 // libmythbase headers
 #include "mythcorecontext.h"
 #include "mythevent.h"
-#include "mythverbose.h"
+#include "mythlogging.h"
 #include "exitcodes.h"
 
 #if CONFIG_CYGWIN || defined(_WIN32)
@@ -92,8 +92,12 @@ void MythSystem::SetCommand(const QString &command,
     ProcessFlags(flags);
 
     // check for execute rights
-    if (!GetSetting("UseShell") && !access(command.toUtf8().constData(), X_OK))
+    if (!GetSetting("UseShell") && access(command.toUtf8().constData(), X_OK))
+    {
+        LOG(VB_GENERAL, LOG_ERR, QString("MythSystem(%1) command not executable, ")
+                .arg(command) + ENO);
         m_status = GENERIC_EXIT_CMD_NOT_FOUND;
+    }
 
     m_logcmd = (m_command + " " + m_args.join(" ")).trimmed();
 
@@ -233,7 +237,7 @@ void MythSystem::ProcessFlags(uint flags)
 {
     if( m_status != GENERIC_EXIT_START )
     {
-        VERBOSE(VB_SYSTEM|VB_EXTRA, QString("status: %1").arg(m_status));
+        LOG(VB_SYSTEM, LOG_DEBUG, QString("status: %1").arg(m_status));
         return;
     }
 
@@ -245,7 +249,7 @@ void MythSystem::ProcessFlags(uint flags)
     if( m_command.endsWith("&") )
     {
         if (!GetSetting("RunInBackground"))
-            VERBOSE(VB_SYSTEM|VB_EXTRA, "Adding background flag");
+            LOG(VB_SYSTEM, LOG_DEBUG, "Adding background flag");
 
         // Remove the &
         m_command.chop(1);
@@ -357,7 +361,7 @@ void MythSystem::JumpAbort(void)
     if (!d)
         return;
 
-    VERBOSE(VB_SYSTEM|VB_EXTRA, "Triggering Abort on Jumppoint");
+    LOG(VB_SYSTEM, LOG_DEBUG, "Triggering Abort on Jumppoint");
     d->JumpAbort();
 }
 

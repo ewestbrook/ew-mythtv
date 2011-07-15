@@ -28,6 +28,7 @@
 #include <QTextCodec>
 #include <QStringList>
 #include <QCryptographicHash>
+#include <QDateTime>
 
 #include "mythconfig.h"
 #if !( CONFIG_DARWIN || CONFIG_CYGWIN || defined(__FreeBSD__) || defined(USING_MINGW))
@@ -47,7 +48,7 @@
 #include "upnp.h"
 
 #include "compat.h"
-#include "mythverbose.h"
+#include "mythlogging.h"
 
 #include "serializers/xmlSerializer.h"
 #include "serializers/soapSerializer.h"
@@ -158,8 +159,9 @@ RequestType HTTPRequest::SetRequestType( const QString &sType )
 
     if (sType.startsWith( QString("HTTP/") )) return( m_eType = RequestTypeResponse );
 
-    VERBOSE( VB_UPNP, QString( "HTTPRequest::SentRequestType( %1 ) - returning Unknown." )
-                         .arg( sType ) );
+    LOG(VB_UPNP, LOG_INFO,
+        QString("HTTPRequest::SentRequestType( %1 ) - returning Unknown.")
+            .arg(sType));
 
     return( m_eType = RequestTypeUnknown);
 }
@@ -177,12 +179,9 @@ QString HTTPRequest::BuildHeader( long long nSize )
     sHeader = QString( "HTTP/%1.%2 %3\r\n"
                        "Date: %4\r\n"
                        "Server: %5, UPnP/1.0, MythTV %6\r\n" )
-                 .arg( m_nMajor )
-                 .arg( m_nMinor )
-                 .arg( GetResponseStatus() )
-                 .arg( QDateTime::currentDateTime().toString( "d MMM yyyy hh:mm:ss" ) )
-                 .arg( HttpServer::g_sPlatform )
-                 .arg( MYTH_BINARY_VERSION );
+             .arg(m_nMajor) .arg(m_nMinor) .arg(GetResponseStatus())
+             .arg(QDateTime::currentDateTime().toString("d MMM yyyy hh:mm:ss"))
+             .arg(HttpServer::g_sPlatform) .arg(MYTH_BINARY_VERSION);
 
     sHeader += GetAdditionalHeaders();
 
@@ -221,16 +220,15 @@ long HTTPRequest::SendResponse( void )
     {
         case ResponseTypeUnknown:
         case ResponseTypeNone:
-            VERBOSE(VB_UPNP,QString("HTTPRequest::SendResponse( None ) :%1 -> %2:")
-                            .arg(GetResponseStatus())
-                            .arg(GetPeerAddress()));
+            LOG(VB_UPNP, LOG_INFO,
+                QString("HTTPRequest::SendResponse( None ) :%1 -> %2:")
+                    .arg(GetResponseStatus()) .arg(GetPeerAddress()));
             return( -1 );
 
         case ResponseTypeFile:
-            VERBOSE(VB_UPNP,QString("HTTPRequest::SendResponse( File ) :%1 -> %2:")
-                            .arg(GetResponseStatus())
-                            .arg(GetPeerAddress()));
-
+            LOG(VB_UPNP, LOG_INFO,
+                QString("HTTPRequest::SendResponse( File ) :%1 -> %2:")
+                    .arg(GetResponseStatus()) .arg(GetPeerAddress()));
             return( SendResponseFile( m_sFileName ));
 
         case ResponseTypeXML:
@@ -240,12 +238,10 @@ long HTTPRequest::SendResponse( void )
             break;
     }
 
-     VERBOSE(VB_UPNP,QString(
-                 "HTTPRequest::SendResponse(xml/html) (%1) :%2 -> %3: %4")
-             .arg(m_sFileName)
-             .arg(GetResponseStatus())
-             .arg(GetPeerAddress())
-             .arg(m_eResponseType));
+    LOG(VB_UPNP, LOG_INFO,
+        QString("HTTPRequest::SendResponse(xml/html) (%1) :%2 -> %3: %4")
+             .arg(m_sFileName) .arg(GetResponseStatus())
+             .arg(GetPeerAddress()) .arg(m_eResponseType));
 
     // ----------------------------------------------------------------------
     // Make it so the header is sent with the data
@@ -296,7 +292,7 @@ long HTTPRequest::SendResponseFile( QString sFileName )
     long long   llStart = 0;
     long long   llEnd   = 0;
 
-    VERBOSE(VB_UPNP, QString("SendResponseFile ( %1 )").arg(sFileName));
+    LOG(VB_UPNP, LOG_INFO, QString("SendResponseFile ( %1 )").arg(sFileName));
 
     m_eResponseType     = ResponseTypeOther;
     m_sResponseTypeText = "text/plain";
@@ -307,7 +303,7 @@ long HTTPRequest::SendResponseFile( QString sFileName )
                                it != m_mapHeaders.end();
                              ++it )
     {
-        VERBOSE(VB_IMPORTANT, it.key() + ": " + *it);
+        LOG(VB_GENERAL, LOG_DEBUG, it.key() + ": " + *it);
     }
 #endif
 
@@ -366,17 +362,15 @@ long HTTPRequest::SendResponseFile( QString sFileName )
             {
                 m_nResponseStatus = 416;
                 llSize = 0;
-                VERBOSE(VB_UPNP,
-                    QString("HTTPRequest::SendResponseFile(%1) - invalid byte range %2-%3/%4")
-                            .arg(sFileName)
-                            .arg(llStart)
-                            .arg(llEnd)
+                LOG(VB_UPNP, LOG_INFO,
+                    QString("HTTPRequest::SendResponseFile(%1) - "
+                            "invalid byte range %2-%3/%4")
+                            .arg(sFileName) .arg(llStart) .arg(llEnd)
                             .arg(llSize));
             }
         }
 
         // DSM-?20 specific response headers
-
         if (bRange == false)
             m_mapRespHeaders[ "User-Agent"    ] = "redsonic";
 
@@ -387,8 +381,8 @@ long HTTPRequest::SendResponseFile( QString sFileName )
     }
     else
     {
-        VERBOSE(VB_UPNP,
-                QString("HTTPRequest::SendResponseFile(%1) - cannot find file!")
+        LOG(VB_UPNP, LOG_INFO,
+            QString("HTTPRequest::SendResponseFile(%1) - cannot find file!")
                 .arg(sFileName));
         m_nResponseStatus = 404;
     }
@@ -407,17 +401,20 @@ long HTTPRequest::SendResponseFile( QString sFileName )
     // Write out File.
     // ----------------------------------------------------------------------
 
-    //VERBOSE(VB_UPNP, QString("SendResponseFile : size = %1, start = %2, end = %3").arg(llSize).arg(llStart).arg(llEnd));
+#if 0
+    LOG(VB_UPNP, LOG_DEBUG,
+        QString("SendResponseFile : size = %1, start = %2, end = %3")
+            .arg(llSize).arg(llStart).arg(llEnd));
+#endif
     if (( m_eType != RequestTypeHead ) && (llSize != 0))
     {
         long long sent = SendFile( tmpFile, llStart, llSize );
 
         if (sent == -1)
         {
-            VERBOSE(VB_UPNP,QString("SendResponseFile( %1 ) Error: %2 [%3]" )
-                               .arg( sFileName )
-                               .arg( errno     )
-                               .arg( strerror( errno ) ));
+            LOG(VB_UPNP, LOG_INFO,
+                QString("SendResponseFile( %1 ) Error: %2 [%3]" )
+                    .arg(sFileName) .arg(errno) .arg(strerror(errno)));
 
             nBytes = -1;
         }
@@ -488,21 +485,18 @@ qint64 HTTPRequest::SendFile( QFile &file, qint64 llStart, qint64 llBytes )
 {
     qint64 sent = 0;
 
-#if CONFIG_DARWIN || CONFIG_CYGWIN || defined(__FreeBSD__) || defined(USING_MINGW)
-
+#ifndef __linux__
     sent = SendData( (QIODevice *)(&file), llStart, llBytes );
-
 #else
-
     __off64_t  offset = llStart; 
     int        fd     = file.handle( ); 
   
     if ( fd == -1 ) 
     { 
-        VERBOSE(VB_UPNP, QString("SendResponseFile( %1 ) Error: %2 [%3]" ) 
-                             .arg( file.fileName() ) 
-                             .arg( file.error( )) 
-                             .arg( strerror( file.error( ) ))); 
+        LOG(VB_UPNP, LOG_INFO,
+            QString("SendResponseFile( %1 ) Error: %2 [%3]") 
+                .arg(file.fileName()) .arg(file.error()) 
+                .arg(strerror(file.error()))); 
         sent = -1; 
     } 
     else 
@@ -514,16 +508,16 @@ qint64 HTTPRequest::SendFile( QFile &file, qint64 llStart, qint64 llBytes )
             // SSIZE_MAX should work in kernels 2.6.16 and later. 
             // The loop is needed in any case. 
   
-            sent = sendfile64( 
-                getSocketHandle(), fd, &offset, 
-                (size_t) ((llBytes > INT_MAX) ? INT_MAX : llBytes)); 
+            sent = sendfile64(getSocketHandle(), fd, &offset, 
+                              (size_t)MIN(llBytes, INT_MAX)); 
   
             if (sent >= 0)
             {
                 llBytes -= sent; 
                 llSent  += sent;
-                VERBOSE(VB_UPNP, QString("SendResponseFile : --- " 
-                        "size = %1, offset = %2, sent = %3") 
+                LOG(VB_UPNP, LOG_INFO,
+                    QString("SendResponseFile : --- size = %1, "
+                            "offset = %2, sent = %3") 
                         .arg(llBytes).arg(offset).arg(sent)); 
             }
         } 
@@ -531,11 +525,9 @@ qint64 HTTPRequest::SendFile( QFile &file, qint64 llStart, qint64 llBytes )
 
         sent = llSent;
     } 
-
 #endif
 
     return( sent );
-
 }
 
 
@@ -678,15 +670,17 @@ void HTTPRequest::FormatFileResponse( const QString &sFileName )
     if (QFile::exists( m_sFileName ))
     {
 
-        m_eResponseType                     = ResponseTypeFile;
-        m_nResponseStatus                   = 200;
-        m_mapRespHeaders[ "Cache-Control" ] = "no-cache=\"Ext\", max-age = 5000";
+        m_eResponseType                   = ResponseTypeFile;
+        m_nResponseStatus                 = 200;
+        m_mapRespHeaders["Cache-Control"] = "no-cache=\"Ext\", max-age = 5000";
     }
     else
     {
         m_eResponseType   = ResponseTypeHTML;
         m_nResponseStatus = 404;
-        VERBOSE(VB_UPNP, QString("HTTPRequest::FormatFileResponse(%1) - cannot find file").arg(sFileName));
+        LOG(VB_UPNP, LOG_INFO,
+            QString("HTTPRequest::FormatFileResponse(%1) - cannot find file")
+                .arg(sFileName));
     }
 }
 
@@ -804,12 +798,9 @@ QString HTTPRequest::TestMimeType( const QString &sFileName )
     QString   sSuffix = info.suffix().toLower();
     QString   sMIME   = GetMimeType( sSuffix );
 
-    if ( sSuffix == "nuv"      // If a very old recording, might be an MPEG?
-       //|| sSuffix == "blah"
-       )
+    if ( sSuffix == "nuv" )     // If a very old recording, might be an MPEG?
     {
         // Read the header to find out:
-
         QFile file( sFileName );
 
         if ( file.open(QIODevice::ReadOnly | QIODevice::Text) )
@@ -817,7 +808,7 @@ QString HTTPRequest::TestMimeType( const QString &sFileName )
             QByteArray head = file.read(8);
             QString    sHex = head.toHex();
 
-            VERBOSE(VB_UPNP+VB_EXTRA, sLOC + "file starts with " + sHex);
+            LOG(VB_UPNP, LOG_DEBUG, sLOC + "file starts with " + sHex);
 
             if ( sHex == "000001ba44000400" )  // MPEG2 PS
                 sMIME = "video/mpeg";
@@ -829,7 +820,7 @@ QString HTTPRequest::TestMimeType( const QString &sFileName )
 
                 if ( head == "DIVX" )
                 {
-                    VERBOSE(VB_UPNP+VB_EXTRA, sLOC + "('MythTVVi...DIVXLAME')");
+                    LOG(VB_UPNP, LOG_DEBUG, sLOC + "('MythTVVi...DIVXLAME')");
                     sMIME = "video/mp4";
                 }
                 // NuppelVideo is "RJPG" at byte 612
@@ -839,10 +830,11 @@ QString HTTPRequest::TestMimeType( const QString &sFileName )
 
             file.close();
         }
-        else VERBOSE(VB_IMPORTANT, sLOC + "Could not read file");
+        else
+            LOG(VB_GENERAL, LOG_ERR, sLOC + "Could not read file");
     }
 
-    VERBOSE(VB_UPNP, sLOC + "type is " + sMIME);
+    LOG(VB_UPNP, LOG_INFO, sLOC + "type is " + sMIME);
     return sMIME;
 }
 
@@ -854,7 +846,7 @@ long HTTPRequest::GetParameters( QString sParams, QStringMap &mapParams  )
 {
     long nCount = 0;
 
-    VERBOSE(VB_UPNP|VB_EXTRA, QString("sParams: '%1'").arg(sParams));
+    LOG(VB_UPNP, LOG_DEBUG, QString("sParams: '%1'").arg(sParams));
 
     // This looks odd, but it is here to cope with stupid UPnP clients that
     // forget to de-escape the URLs.  We can't map %26 here as well, as that
@@ -962,12 +954,11 @@ bool HTTPRequest::ParseRequest()
     try
     {
         // Read first line to determin requestType
-
         QString sRequestLine = ReadLine( 2000 );
 
         if ( sRequestLine.length() == 0)
         {
-            VERBOSE(VB_IMPORTANT, "HTTPRequest::ParseRequest - Timeout reading first line of request." );
+            LOG(VB_GENERAL, LOG_ERR, "Timeout reading first line of request." );
             return false;
         }
 
@@ -996,30 +987,27 @@ bool HTTPRequest::ParseRequest()
 
                 if ((sName.length() != 0) && (sValue.length() !=0))
                 {
-                    m_mapHeaders.insert(
-                        sName.toLower(), sValue.trimmed());
+                    m_mapHeaders.insert(sName.toLower(), sValue.trimmed());
 
                     if (sName.contains( "dlna", Qt::CaseInsensitive ))
                     {
-                        VERBOSE(VB_UPNP, QString( "HTTPRequest::ParseRequest - Header: %1:%2")
-                                            .arg( sName  )
-                                            .arg( sValue ));
+                        LOG(VB_UPNP, LOG_INFO,
+                           QString( "HTTPRequest::ParseRequest - Header: %1:%2")
+                               .arg(sName) .arg(sValue));
                     }
                 }
 
                 sLine = ReadLine( 2000 );
-
             }
             else
                 bDone = true;
-
         }
 
         // Check to see if we found the end of the header or we timed out.
 
         if (!bDone)
         {
-            VERBOSE(VB_IMPORTANT, "HTTPRequest::ParseRequest - Timeout waiting for request header." );
+            LOG(VB_GENERAL, LOG_INFO, "Timeout waiting for request header." );
             return false;
         }
 
@@ -1031,7 +1019,7 @@ bool HTTPRequest::ParseRequest()
             {
                 m_eResponseType   = ResponseTypeHTML;
                 m_nResponseStatus = 401;
-                m_mapRespHeaders[ "WWW-Authenticate" ] = "Basic realm=\"MythTV\"";
+                m_mapRespHeaders["WWW-Authenticate"] = "Basic realm=\"MythTV\"";
 
                 m_response.write( Static401Error );
 
@@ -1041,13 +1029,11 @@ bool HTTPRequest::ParseRequest()
             m_bProtected = true;
         }
 
-
         bSuccess = true;
 
         SetContentType( m_mapHeaders[ "content-type" ] );
 
         // Lets load payload if any.
-
         long nPayloadSize = m_mapHeaders[ "content-length" ].toLong();
 
         if (nPayloadSize > 0)
@@ -1055,20 +1041,20 @@ bool HTTPRequest::ParseRequest()
             char *pszPayload = new char[ nPayloadSize + 2 ];
             long  nBytes     = 0;
 
-            if (( nBytes = ReadBlock( pszPayload, nPayloadSize, 5000 )) == nPayloadSize )
+            nBytes = ReadBlock( pszPayload, nPayloadSize, 5000 );
+            if (nBytes == nPayloadSize )
             {
                 m_sPayload = QString::fromUtf8( pszPayload, nPayloadSize );
 
                 // See if the payload is just data from a form post
-
-                if ( m_eContentType == ContentType_Urlencoded)
+                if (m_eContentType == ContentType_Urlencoded)
                     GetParameters( m_sPayload, m_mapParams );
             }
             else
             {
-                VERBOSE( VB_IMPORTANT, QString( "HTTPRequest::ParseRequest - Unable to read entire payload (read %1 of %2 bytes" )
-                                        .arg( nBytes )
-                                        .arg( nPayloadSize ) );
+                LOG(VB_GENERAL, LOG_ERR,
+                  QString("Unable to read entire payload (read %1 of %2 bytes)")
+                      .arg( nBytes ) .arg( nPayloadSize ) );
                 bSuccess = false;
             }
 
@@ -1084,18 +1070,19 @@ bool HTTPRequest::ParseRequest()
         else
             ExtractMethodFromURL();
 
-/*
+#if 0
         if (m_sMethod != "*" )
-            VERBOSE( VB_UPNP, QString("HTTPRequest::ParseRequest - Socket (%1) Base (%2) Method (%3) - Bytes in Socket Buffer (%4)")
-                                 .arg( getSocketHandle() )
-                                 .arg( m_sBaseUrl )
-                                 .arg( m_sMethod  )
-                                 .arg( BytesAvailable()));
-*/
+            LOG(VB_UPNP, LOG_DEBUG,
+                QString("HTTPRequest::ParseRequest - Socket (%1) Base (%2) "
+                        "Method (%3) - Bytes in Socket Buffer (%4)")
+                    .arg(getSocketHandle()) .arg(m_sBaseUrl)
+                    .arg(m_sMethod) .arg(BytesAvailable()));
+#endif
     }
-    catch( ... )
+    catch(...)
     {
-        VERBOSE(VB_IMPORTANT, "Unexpected exception in HTTPRequest::ParseRequest" );
+        LOG(VB_GENERAL, LOG_WARNING,
+            "Unexpected exception in HTTPRequest::ParseRequest" );
     }
 
     return bSuccess;
@@ -1139,18 +1126,17 @@ void HTTPRequest::ProcessRequestLine( const QString &sLine )
         if (nCount > 1)
         {
             //m_sBaseUrl = tokens[1].section( '?', 0, 0).trimmed();
-            m_sBaseUrl = (QUrl::fromPercentEncoding(tokens[1].toUtf8())).section( '?', 0, 0).trimmed();
+            m_sBaseUrl = (QUrl::fromPercentEncoding(tokens[1].toUtf8()))
+                              .section( '?', 0, 0).trimmed();
 
-            m_sResourceUrl = m_sBaseUrl;  // Save complete url without paramaters
+            m_sResourceUrl = m_sBaseUrl; // Save complete url without parameters
 
             // Process any Query String Parameters
-
-            //QString sQueryStr = tokens[1].section( '?', 1, 1   );
-            QString sQueryStr = (QUrl::fromPercentEncoding(tokens[1].toUtf8())).section( '?', 1, 1 );
+            QString sQueryStr = (QUrl::fromPercentEncoding(tokens[1].toUtf8()))
+                                     .section( '?', 1, 1 );
 
             if (sQueryStr.length() > 0)
                 GetParameters( sQueryStr, m_mapParams );
-
         }
 
         if (nCount > 2)
@@ -1161,7 +1147,6 @@ void HTTPRequest::ProcessRequestLine( const QString &sLine )
         // ------------------------------------------------------------------
         // Process as a Response
         // ------------------------------------------------------------------
-
         if (nCount > 0)
             SetRequestProtocol( tokens[0].trimmed() );
 
@@ -1180,7 +1165,8 @@ bool HTTPRequest::ParseRange( QString sRange,
                               long long *pllEnd   )
 {
     // ----------------------------------------------------------------------
-    // -=>TODO: Only handle 1 range at this time... should make work with full spec.
+    // -=>TODO: Only handle 1 range at this time... 
+    //          should make work with full spec.
     // ----------------------------------------------------------------------
 
     if (sRange.length() == 0)
@@ -1264,7 +1250,7 @@ bool HTTPRequest::ParseRange( QString sRange,
     }
 
 #if 0
-    VERBOSE(VB_IMPORTANT, QString("%1 Range Requested %2 - %3")
+    LOG(VB_GENERAL, LOG_DEBUG, QString("%1 Range Requested %2 - %3")
         .arg(getSocketHandle()) .arg(*pllStart) .arg(*pllEnd));
 #endif
 
@@ -1294,7 +1280,8 @@ void HTTPRequest::ExtractMethodFromURL()
     }
 
     m_sBaseUrl = '/' + sList.join( "/" );
-    VERBOSE(VB_UPNP, QString("ExtractMethodFromURL(end) : %1 : %2").arg(m_sMethod).arg(m_sBaseUrl));
+    LOG(VB_UPNP, LOG_INFO, QString("ExtractMethodFromURL(end) : %1 : %2")
+                               .arg(m_sMethod).arg(m_sBaseUrl));
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -1309,7 +1296,8 @@ bool HTTPRequest::ProcessSOAPPayload( const QString &sSOAPAction )
     // Open Supplied XML uPnp Description file.
     // ----------------------------------------------------------------------
 
-    VERBOSE(VB_UPNP, QString("HTTPRequest::ProcessSOAPPayload : %1 : ").arg(sSOAPAction));
+    LOG(VB_UPNP, LOG_DEBUG,
+        QString("HTTPRequest::ProcessSOAPPayload : %1 : ").arg(sSOAPAction));
     QDomDocument doc ( "request" );
 
     QString sErrMsg;
@@ -1318,10 +1306,9 @@ bool HTTPRequest::ProcessSOAPPayload( const QString &sSOAPAction )
 
     if (!doc.setContent( m_sPayload, true, &sErrMsg, &nErrLine, &nErrCol ))
     {
-        VERBOSE(VB_IMPORTANT, QString( "Error parsing request at line: %1 column: %2 : %3" )
-                                .arg( nErrLine )
-                                .arg( nErrCol  )
-                                .arg( sErrMsg  ));
+        LOG(VB_GENERAL, LOG_ERR,
+            QString( "Error parsing request at line: %1 column: %2 : %3" )
+                .arg(nErrLine) .arg(nErrCol) .arg(sErrMsg));
         return( false );
     }
 
@@ -1341,13 +1328,15 @@ bool HTTPRequest::ProcessSOAPPayload( const QString &sSOAPAction )
     {
         if (sSOAPAction.contains( '/' ))
         {
-            int nPos       = sSOAPAction.lastIndexOf( '/' );
-            m_sNameSpace   = sSOAPAction.mid( 1, nPos );
-            m_sMethod      = sSOAPAction.mid( nPos + 1, sSOAPAction.length() - nPos - 2  );
+            int nPos      = sSOAPAction.lastIndexOf( '/' );
+            m_sNameSpace  = sSOAPAction.mid(1, nPos);
+            m_sMethod     = sSOAPAction.mid(nPos + 1,
+                                            sSOAPAction.length() - nPos - 2);
 
-            nPos           = m_sNameSpace.lastIndexOf( '/', -2);
-            sService       = m_sNameSpace.mid( nPos + 1, m_sNameSpace.length() - nPos - 2  );
-            m_sNameSpace   = m_sNameSpace.mid( 0, nPos );
+            nPos          = m_sNameSpace.lastIndexOf( '/', -2);
+            sService      = m_sNameSpace.mid(nPos + 1,
+                                             m_sNameSpace.length() - nPos - 2);
+            m_sNameSpace  = m_sNameSpace.mid( 0, nPos );
         }
         else
         {
@@ -1360,7 +1349,9 @@ bool HTTPRequest::ProcessSOAPPayload( const QString &sSOAPAction )
     QDomNodeList oNodeList = doc.elementsByTagNameNS( m_sNameSpace, m_sMethod );
 
     if (oNodeList.count() == 0)
-        oNodeList = doc.elementsByTagNameNS( "http://schemas.xmlsoap.org/soap/envelope/", "Body" );
+        oNodeList = 
+            doc.elementsByTagNameNS("http://schemas.xmlsoap.org/soap/envelope/",
+                                    "Body");
 
     if (oNodeList.count() > 0)
     {
@@ -1408,21 +1399,24 @@ Serializer *HTTPRequest::GetSerializer()
     Serializer *pSerializer = NULL;
 
     if (m_bSOAPRequest) 
-        pSerializer = (Serializer *)new SoapSerializer( &m_response, m_sNameSpace, m_sMethod );
+        pSerializer = (Serializer *)new SoapSerializer(&m_response,
+                                                       m_sNameSpace, m_sMethod);
     else
     {
         QString sAccept = GetHeaderValue( "Accept", "*/*" );
         
         if (sAccept.contains( "application/json", Qt::CaseInsensitive ))    
-            pSerializer = (Serializer *)new JSONSerializer( &m_response, m_sMethod );
+            pSerializer = (Serializer *)new JSONSerializer(&m_response,
+                                                           m_sMethod);
         else if (sAccept.contains( "text/javascript", Qt::CaseInsensitive ))    
-            pSerializer = (Serializer *)new JSONSerializer( &m_response, m_sMethod );
+            pSerializer = (Serializer *)new JSONSerializer(&m_response,
+                                                           m_sMethod);
     }
 
     // Default to XML
 
     if (pSerializer == NULL)
-        pSerializer = (Serializer *)new XmlSerializer( &m_response, m_sMethod );
+        pSerializer = (Serializer *)new XmlSerializer(&m_response, m_sMethod);
 
     return pSerializer;
 }
@@ -1434,14 +1428,20 @@ Serializer *HTTPRequest::GetSerializer()
 QString HTTPRequest::Encode(const QString &sIn)
 {
     QString sStr = sIn;
-    //VERBOSE(VB_UPNP, QString("HTTPRequest::Encode Input : %1").arg(sStr));
+#if 0
+    LOG(VB_UPNP, LOG_DEBUG, 
+        QString("HTTPRequest::Encode Input : %1").arg(sStr));
+#endif
     sStr.replace('&', "&amp;" ); // This _must_ come first
     sStr.replace('<', "&lt;"  );
     sStr.replace('>', "&gt;"  );
     sStr.replace('"', "&quot;");
     sStr.replace("'", "&apos;");
 
-    //VERBOSE(VB_UPNP, QString("HTTPRequest::Encode Output : %1").arg(sStr));
+#if 0
+    LOG(VB_UPNP, LOG_DEBUG,
+        QString("HTTPRequest::Encode Output : %1").arg(sStr));
+#endif
     return sStr;
 }
 

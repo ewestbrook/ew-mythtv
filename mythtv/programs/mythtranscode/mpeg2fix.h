@@ -36,15 +36,6 @@ extern "C"
 #include "transcodedefs.h"
 #include "programtypes.h"
 
-enum MPFDisplayMask {
-    MPF_IMPORTANT = 0x0001,
-    MPF_GENERAL   = 0x0002,
-    MPF_PROCESS   = 0x0004,
-    MPF_FRAME     = 0x0008,
-    MPF_RPLXQUEUE = 0x0010,
-    MPF_DECODE    = 0x0020,
-};
-
 enum MPFListType {
     MPF_TYPE_CUTLIST = 0,
     MPF_TYPE_SAVELIST,
@@ -278,10 +269,11 @@ class MPEG2fixup
 
     using namespace std;
 
-    extern int print_verbose_messages;
-    #define VERBOSE(mask,args...) \
+    extern int verboseMask;
+    #undef LOG
+    #define LOG(mask,level,args...) \
     do { \
-        if ((print_verbose_messages & mask) != 0) \
+        if ((verboseMask & mask) != 0) \
         { \
             cout << args << endl; \
         } \

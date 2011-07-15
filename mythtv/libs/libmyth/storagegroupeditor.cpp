@@ -7,12 +7,10 @@
 #include "storagegroupeditor.h"
 #include "mythcorecontext.h"
 #include "mythdb.h"
-#include "mythverbose.h"
+#include "mythlogging.h"
 #include "util.h"
 
 #define LOC QString("SGE(%1): ").arg(m_groupname)
-#define LOC_WARN QString("SGE(%1) Warning: ").arg(m_groupname)
-#define LOC_ERR QString("SGE(%1) Error: ").arg(m_groupname)
 
 typedef enum {
     SGPopup_OK = 0,

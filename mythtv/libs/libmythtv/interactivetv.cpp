@@ -10,14 +10,14 @@
 // MythTV headers
 #include "interactivetv.h"
 #include "mhi.h"
-#include "mythverbose.h"
+#include "mythlogging.h"
 
 InteractiveTV::InteractiveTV(MythPlayer *nvp)
     : m_context(new MHIContext(this)), m_nvp(nvp)
 {
     Restart(0, 0, false);
 
-    if (VERBOSE_LEVEL_CHECK(VB_MHEG))
+    if (VERBOSE_LEVEL_CHECK(VB_MHEG, LOG_ANY))
     {
         MHSetLogging(stdout, MHLogAll);
     }

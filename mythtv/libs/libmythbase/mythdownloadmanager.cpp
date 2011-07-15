@@ -15,7 +15,6 @@
 #include "mythcoreutil.h"
 #include "mythdirs.h"
 #include "mythevent.h"
-#include "mythverbose.h"
 #include "mythversion.h"
 #include "remotefile.h"
 
@@ -25,8 +24,6 @@
 using namespace std;
 
 #define LOC      QString("DownloadManager: ")
-#define LOC_WARN QString("DownloadManager, Warning: ")
-#define LOC_ERR  QString("DownloadManager, Error: ")
 
 MythDownloadManager *downloadManager = NULL;
 
@@ -107,6 +104,9 @@ class RemoteFileDownloadThread : public QRunnable
 
         if (!ok)
             m_dlInfo->m_errorCode = QNetworkReply::UnknownNetworkError;
+
+        m_dlInfo->m_bytesReceived = m_dlInfo->m_privData.size();
+        m_dlInfo->m_bytesTotal = m_dlInfo->m_bytesReceived;
 
         m_parent->downloadFinished(m_dlInfo);
         threadDeregister();
@@ -337,7 +337,7 @@ bool MythDownloadManager::processItem(const QString &url, QNetworkRequest *req,
  */
 void MythDownloadManager::preCache(const QString &url)
 {
-    VERBOSE(VB_FILE+VB_EXTRA, LOC + QString("preCache('%1')").arg(url));
+    LOG(VB_FILE, LOG_DEBUG, LOC + QString("preCache('%1')").arg(url));
     queueItem(url, NULL, QString(), NULL, NULL);
 }
 
@@ -356,7 +356,7 @@ void MythDownloadManager::queueDownload(const QString &url,
                                         QObject *caller,
                                         const bool reload)
 {
-    VERBOSE(VB_FILE+VB_EXTRA, LOC + QString("queueDownload('%1', '%2', %3)")
+    LOG(VB_FILE, LOG_DEBUG, LOC + QString("queueDownload('%1', '%2', %3)")
             .arg(url).arg(dest).arg((long long)caller));
 
     queueItem(url, NULL, dest, NULL, caller, false, reload);
@@ -374,8 +374,9 @@ void MythDownloadManager::queueDownload(QNetworkRequest *req,
                                         QByteArray *data,
                                         QObject *caller)
 {
-    VERBOSE(VB_FILE+VB_EXTRA, LOC + QString("queueDownload('%1', '%2', %3)")
-            .arg(req->url().toString()).arg((long long)data).arg((long long)caller));
+    LOG(VB_FILE, LOG_DEBUG, LOC + QString("queueDownload('%1', '%2', %3)")
+            .arg(req->url().toString()).arg((long long)data)
+            .arg((long long)caller));
 
     queueItem(req->url().toString(), req, QString(), data, caller);
 }
@@ -450,7 +451,7 @@ QNetworkReply *MythDownloadManager::download(const QString &url,
  */
 bool MythDownloadManager::download(QNetworkRequest *req, QByteArray *data)
 {
-    VERBOSE(VB_FILE+VB_EXTRA, LOC + QString("download('%1', '%2')")
+    LOG(VB_FILE, LOG_DEBUG, LOC + QString("download('%1', '%2')")
             .arg(req->url().toString()).arg((long long)data));
     return processItem(req->url().toString(), req, QString(), data);
 }
@@ -467,12 +468,12 @@ void MythDownloadManager::queuePost(const QString &url,
                                     QByteArray *data,
                                     QObject *caller)
 {
-    VERBOSE(VB_FILE+VB_EXTRA, LOC + QString("queuePost('%1', '%2')")
+    LOG(VB_FILE, LOG_DEBUG, LOC + QString("queuePost('%1', '%2')")
             .arg(url).arg((long long)data));
 
     if (!data)
     {
-        VERBOSE(VB_IMPORTANT, LOC_ERR + "queuePost(), data is NULL!");
+        LOG(VB_GENERAL, LOG_ERR, LOC + "queuePost(), data is NULL!");
         return;
     }
 
@@ -491,12 +492,12 @@ void MythDownloadManager::queuePost(QNetworkRequest *req,
                                     QByteArray *data,
                                     QObject *caller)
 {
-    VERBOSE(VB_FILE+VB_EXTRA, LOC + QString("queuePost('%1', '%2')")
+    LOG(VB_FILE, LOG_DEBUG, LOC + QString("queuePost('%1', '%2')")
             .arg(req->url().toString()).arg((long long)data));
 
     if (!data)
     {
-        VERBOSE(VB_IMPORTANT, LOC_ERR + "queuePost(), data is NULL!");
+        LOG(VB_GENERAL, LOG_ERR, LOC + "queuePost(), data is NULL!");
         return;
     }
 
@@ -511,12 +512,12 @@ void MythDownloadManager::queuePost(QNetworkRequest *req,
  */
 bool MythDownloadManager::post(const QString &url, QByteArray *data)
 {
-    VERBOSE(VB_FILE+VB_EXTRA, LOC + QString("post('%1', '%2')")
+    LOG(VB_FILE, LOG_DEBUG, LOC + QString("post('%1', '%2')")
             .arg(url).arg((long long)data));
 
     if (!data)
     {
-        VERBOSE(VB_IMPORTANT, LOC_ERR + "post(), data is NULL!");
+        LOG(VB_GENERAL, LOG_ERR, LOC + "post(), data is NULL!");
         return false;
     }
 
@@ -531,12 +532,12 @@ bool MythDownloadManager::post(const QString &url, QByteArray *data)
  */
 bool MythDownloadManager::post(QNetworkRequest *req, QByteArray *data)
 {
-    VERBOSE(VB_FILE+VB_EXTRA, LOC + QString("post('%1', '%2')")
+    LOG(VB_FILE, LOG_DEBUG, LOC + QString("post('%1', '%2')")
             .arg(req->url().toString()).arg((long long)data));
 
     if (!data)
     {
-        VERBOSE(VB_IMPORTANT, LOC_ERR + "post(), data is NULL!");
+        LOG(VB_GENERAL, LOG_ERR, LOC + "post(), data is NULL!");
         return false;
     }
 
@@ -712,8 +713,7 @@ void MythDownloadManager::downloadError(QNetworkReply::NetworkError errorCode)
 {
     QNetworkReply *reply = (QNetworkReply*)sender();
 
-    VERBOSE(VB_FILE+VB_EXTRA, LOC +
-            QString("downloadError(%1) (for reply %2)")
+    LOG(VB_FILE, LOG_DEBUG, LOC + QString("downloadError(%1) (for reply %2)")
                     .arg(errorCode).arg((long long)reply));
 
     QMutexLocker locker(m_infoLock);
@@ -741,7 +741,7 @@ void MythDownloadManager::downloadError(QNetworkReply::NetworkError errorCode)
 QUrl MythDownloadManager::redirectUrl(const QUrl& possibleRedirectUrl,
                                       const QUrl& oldRedirectUrl) const
 {
-    VERBOSE(VB_FILE+VB_EXTRA, LOC + QString("redirectUrl()"));
+    LOG(VB_FILE, LOG_DEBUG, LOC + QString("redirectUrl()"));
     QUrl redirectUrl;
 
     if(!possibleRedirectUrl.isEmpty() && possibleRedirectUrl != oldRedirectUrl)
@@ -756,7 +756,7 @@ QUrl MythDownloadManager::redirectUrl(const QUrl& possibleRedirectUrl,
  */
 void MythDownloadManager::downloadFinished(QNetworkReply* reply)
 {
-    VERBOSE(VB_FILE+VB_EXTRA, LOC + QString("downloadFinished(%1)")
+    LOG(VB_FILE, LOG_DEBUG, LOC + QString("downloadFinished(%1)")
                                             .arg((long long)reply));
 
     QMutexLocker locker(m_infoLock);
@@ -793,11 +793,11 @@ void MythDownloadManager::downloadFinished(MythDownloadInfo *dlInfo)
 
     if(!dlInfo->m_redirectedTo.isEmpty())
     {
-        VERBOSE(VB_FILE+VB_EXTRA, LOC +
-                QString("downloadFinished(%1): Redirect: %2 -> %3")
-                        .arg((long long)dlInfo)
-                        .arg(reply->url().toString())
-                        .arg(dlInfo->m_redirectedTo.toString()));
+        LOG(VB_FILE, LOG_DEBUG, LOC +
+            QString("downloadFinished(%1): Redirect: %2 -> %3")
+                .arg((long long)dlInfo)
+                .arg(reply->url().toString())
+                .arg(dlInfo->m_redirectedTo.toString()));
 
         QNetworkRequest request(dlInfo->m_redirectedTo);
         if (dlInfo->m_preferCache)
@@ -823,7 +823,7 @@ void MythDownloadManager::downloadFinished(MythDownloadInfo *dlInfo)
     }
     else
     {
-        VERBOSE(VB_FILE+VB_EXTRA, QString("downloadFinished(%1): COMPLETE: %2")
+        LOG(VB_FILE, LOG_DEBUG, QString("downloadFinished(%1): COMPLETE: %2")
                 .arg((long long)dlInfo).arg(dlInfo->m_url));
 
         dlInfo->m_redirectedTo.clear();
@@ -883,7 +883,7 @@ void MythDownloadManager::downloadFinished(MythDownloadInfo *dlInfo)
         {
             if (dlInfo->m_caller)
             {
-                VERBOSE(VB_FILE+VB_EXTRA, QString("downloadFinished(%1): "
+                LOG(VB_FILE, LOG_DEBUG, QString("downloadFinished(%1): "
                         "COMPLETE: %2, sending event to caller")
                         .arg((long long)dlInfo).arg(dlInfo->m_url));
 
@@ -915,9 +915,9 @@ void MythDownloadManager::downloadProgress(qint64 bytesReceived, qint64 bytesTot
 {
     QNetworkReply *reply = (QNetworkReply*)sender();
 
-    VERBOSE(VB_FILE+VB_EXTRA, LOC +
-            QString("downloadProgress(%1, %2) (for reply %3)")
-                    .arg(bytesReceived).arg(bytesTotal).arg((long long)reply));
+    LOG(VB_FILE, LOG_DEBUG, LOC +
+        QString("downloadProgress(%1, %2) (for reply %3)")
+            .arg(bytesReceived).arg(bytesTotal).arg((long long)reply));
 
     QMutexLocker locker(m_infoLock);
     if (!m_downloadReplies.contains(reply))
@@ -930,14 +930,14 @@ void MythDownloadManager::downloadProgress(qint64 bytesReceived, qint64 bytesTot
 
     dlInfo->m_lastStat = QDateTime::currentDateTime();
 
-    VERBOSE(VB_FILE+VB_EXTRA, LOC + QString("downloadProgress: %1 "
-            "to %2 is at %3 of %4 bytes downloaded")
+    LOG(VB_FILE, LOG_DEBUG, LOC + 
+        QString("downloadProgress: %1 to %2 is at %3 of %4 bytes downloaded")
             .arg(dlInfo->m_url).arg(dlInfo->m_outFile)
             .arg(bytesReceived).arg(bytesTotal));
 
     if (!dlInfo->m_syncMode && dlInfo->m_caller)
     {
-        VERBOSE(VB_FILE+VB_EXTRA, QString("downloadProgress(%1): "
+        LOG(VB_FILE, LOG_DEBUG, QString("downloadProgress(%1): "
                 "sending event to caller")
                 .arg(reply->url().toString()));
 
@@ -986,7 +986,7 @@ bool MythDownloadManager::saveFile(const QString &outFile,
 
     if (!qdir.exists() && !qdir.mkpath(fileInfo.absolutePath()))
     {
-        VERBOSE(VB_IMPORTANT, QString("Failed to create: '%1'")
+        LOG(VB_GENERAL, LOG_ERR, QString("Failed to create: '%1'")
                 .arg(fileInfo.absolutePath()));
         return false;
     }
@@ -997,8 +997,7 @@ bool MythDownloadManager::saveFile(const QString &outFile,
 
     if (!file.open(mode))
     {
-        VERBOSE(VB_IMPORTANT, QString("Failed to open: '%1'")
-                .arg(outFile));
+        LOG(VB_GENERAL, LOG_ERR, QString("Failed to open: '%1'") .arg(outFile));
         return false;
     }
 
@@ -1034,7 +1033,7 @@ bool MythDownloadManager::saveFile(const QString &outFile,
 QDateTime MythDownloadManager::GetLastModified(const QString &url)
 {
     static const char dateFormat[] = "ddd, dd MMM yyyy hh:mm:ss 'GMT'";
-    VERBOSE(VB_FILE+VB_EXTRA, LOC + QString("GetLastModified('%1')").arg(url));
+    LOG(VB_FILE, LOG_DEBUG, LOC + QString("GetLastModified('%1')").arg(url));
     QDateTime result;
 
     QDateTime now = QDateTime::currentDateTime();

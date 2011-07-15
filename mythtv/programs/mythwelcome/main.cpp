@@ -11,14 +11,13 @@
 
 // MythTV
 #include "mythcontext.h"
-#include "mythverbose.h"
 #include "mythversion.h"
 #include "mythtranslation.h"
 #include "mythdbcon.h"
 #include "exitcodes.h"
 #include "compat.h"
 #include "lcddevice.h"
-#include "mythcommandlineparser.h"
+#include "commandlineparser.h"
 #include "tv.h"
 #include "mythlogging.h"
 
@@ -47,7 +46,6 @@ static void initKeys(void)
 int main(int argc, char **argv)
 {
     bool bShowSettings = false;
-    int quiet = 0;
 
     MythWelcomeCommandLineParser cmdline;
     if (!cmdline.Parse(argc, argv))
@@ -69,44 +67,27 @@ int main(int argc, char **argv)
     }
     
     QApplication a(argc, argv);
-
     QCoreApplication::setApplicationName(MYTH_APPNAME_MYTHWELCOME);
 
-    if (parse_verbose_arg(cmdline.toString("verbose")) ==
-            GENERIC_EXIT_INVALID_CMDLINE)
-        return GENERIC_EXIT_INVALID_CMDLINE;
+    int retval;
+    if ((retval = cmdline.ConfigureLogging()) != GENERIC_EXIT_OK)
+        return retval;
 
     if (cmdline.toBool("setup"))
         bShowSettings = true;
 
-    if (cmdline.toBool("quiet"))
-    {
-        quiet = cmdline.toUInt("quiet");
-        if (quiet > 1)
-        {
-            print_verbose_messages = VB_NONE;
-            parse_verbose_arg("none");
-        }
-    }
-
-    int facility = cmdline.GetSyslogFacility();
-    bool dblog = !cmdline.toBool("nodblog");
-
-    logfile = cmdline.GetLogFilePath();
-    logStart(logfile, quiet, facility, dblog);
-
     gContext = new MythContext(MYTH_BINARY_VERSION);
     if (!gContext->Init())
     {
-        VERBOSE(VB_IMPORTANT, "mythwelcome: Could not initialize MythContext. "
-                        "Exiting.");
+        LOG(VB_GENERAL, LOG_ERR,
+            "mythwelcome: Could not initialize MythContext. Exiting.");
         return GENERIC_EXIT_NO_MYTHCONTEXT;
     }
 
     if (!MSqlQuery::testDBConnection())
     {
-        VERBOSE(VB_IMPORTANT, "mythwelcome: Could not open the database. "
-                        "Exiting.");
+        LOG(VB_GENERAL, LOG_ERR,
+            "mythwelcome: Could not open the database. Exiting.");
         return -1;
     }
 

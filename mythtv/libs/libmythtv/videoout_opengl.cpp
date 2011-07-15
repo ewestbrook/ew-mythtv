@@ -9,7 +9,6 @@
 #include "mythuihelper.h"
 
 #define LOC      QString("VidOutGL: ")
-#define LOC_ERR  QString("VidOutGL Error: ")
 
 void VideoOutputOpenGL::GetRenderOptions(render_opts &opts,
                                          QStringList &cpudeints)
@@ -173,7 +172,8 @@ bool VideoOutputOpenGL::Init(int width, int height, float aspect, WId winid,
 
     if (!gCoreContext->IsUIThread())
     {
-        VERBOSE(VB_IMPORTANT, LOC + "Deferring creation of OpenGL resources");
+        LOG(VB_GENERAL, LOG_NOTICE, LOC +
+            "Deferring creation of OpenGL resources");
         gl_valid = false;
     }
     else
@@ -199,7 +199,7 @@ bool VideoOutputOpenGL::InputChanged(const QSize &input_size,
                                      void        *codec_private,
                                      bool        &aspect_only)
 {
-    VERBOSE(VB_PLAYBACK, LOC + QString("InputChanged(%1,%2,%3) %4->%5")
+    LOG(VB_PLAYBACK, LOG_INFO, LOC + QString("InputChanged(%1,%2,%3) %4->%5")
             .arg(input_size.width()).arg(input_size.height()).arg(aspect)
             .arg(toString(video_codec_id)).arg(toString(av_codec_id)));
 
@@ -218,22 +218,25 @@ bool VideoOutputOpenGL::InputChanged(const QSize &input_size,
 
     if (!codec_is_std(av_codec_id))
     {
-        VERBOSE(VB_IMPORTANT, LOC_ERR +
-            QString("New video codec is not supported."));
+        LOG(VB_GENERAL, LOG_ERR, LOC + "New video codec is not supported.");
         errorState = kError_Unknown;
         return false;
     }
 
-    if (input_size == window.GetActualVideoDim())
+    bool cid_changed = (video_codec_id != av_codec_id);
+    bool res_changed = input_size  != window.GetActualVideoDim();
+    bool asp_changed = aspect      != window.GetVideoAspect();
+
+    if (!res_changed && !cid_changed)
     {
-        aspect_only = video_codec_id == av_codec_id;
-        if (window.GetVideoAspect() != aspect)
+        if (asp_changed)
         {
+            aspect_only = true;
             VideoAspectRatioChanged(aspect);
             MoveResize();
-            if (wasembedding)
-                EmbedInWidget(oldrect);
         }
+        if (wasembedding)
+            EmbedInWidget(oldrect);
         return true;
     }
 
@@ -253,8 +256,7 @@ bool VideoOutputOpenGL::InputChanged(const QSize &input_size,
         return true;
     }
 
-    VERBOSE(VB_IMPORTANT, LOC_ERR +
-        QString("Failed to re-initialise video output."));
+    LOG(VB_GENERAL, LOG_ERR, LOC + "Failed to re-initialise video output.");
     errorState = kError_Unknown;
 
     return false;
@@ -266,14 +268,14 @@ bool VideoOutputOpenGL::SetupContext(void)
 
     if (gl_context)
     {
-        VERBOSE(VB_PLAYBACK, LOC + QString("Re-using context"));
+        LOG(VB_PLAYBACK, LOG_INFO, LOC + QString("Re-using context"));
         return true;
     }
 
     MythMainWindow* win = MythMainWindow::getMainWindow();
     if (!win)
     {
-        VERBOSE(VB_IMPORTANT, LOC_ERR + "Failed to get MythMainWindow");
+        LOG(VB_GENERAL, LOG_ERR, LOC + "Failed to get MythMainWindow");
         return false;
     }
 
@@ -281,7 +283,7 @@ bool VideoOutputOpenGL::SetupContext(void)
     if (gl_context)
     {
         gl_context->UpRef();
-        VERBOSE(VB_PLAYBACK, LOC + "Using main UI render context");
+        LOG(VB_PLAYBACK, LOG_INFO, LOC + "Using main UI render context");
         return true;
     }
 
@@ -291,7 +293,7 @@ bool VideoOutputOpenGL::SetupContext(void)
     QGLWidget *device = (QGLWidget*)QWidget::find(gl_parent_win);
     if (!device)
     {
-        VERBOSE(VB_IMPORTANT, LOC_ERR + "Failed to cast parent to QGLWidget");
+        LOG(VB_GENERAL, LOG_ERR, LOC + "Failed to cast parent to QGLWidget");
         return false;
     }
 
@@ -299,11 +301,11 @@ bool VideoOutputOpenGL::SetupContext(void)
     if (gl_context && gl_context->create())
     {
         gl_context->Init();
-        VERBOSE(VB_GENERAL, LOC + QString("Created MythRenderOpenGL device."));
+        LOG(VB_GENERAL, LOG_INFO, LOC + "Created MythRenderOpenGL device.");
         return true;
     }
 
-    VERBOSE(VB_IMPORTANT, LOC_ERR + "Failed to create MythRenderOpenGL device.");
+    LOG(VB_GENERAL, LOG_ERR, LOC + "Failed to create MythRenderOpenGL device.");
     if (gl_context)
         gl_context->DownRef();
     gl_context = NULL;
@@ -367,7 +369,7 @@ void VideoOutputOpenGL::InitOSD(void)
         gl_painter = new MythOpenGLPainter(gl_context, device);
         if (!gl_painter)
         {
-            VERBOSE(VB_IMPORTANT, LOC_ERR + "Failed to create painter");
+            LOG(VB_GENERAL, LOG_ERR, LOC + "Failed to create painter");
             return;
         }
         gl_created_painter = true;
@@ -377,10 +379,10 @@ void VideoOutputOpenGL::InitOSD(void)
         gl_painter = (MythOpenGLPainter*)win->GetCurrentPainter();
         if (!gl_painter)
         {
-            VERBOSE(VB_IMPORTANT, LOC_ERR + "Failed to get painter");
+            LOG(VB_GENERAL, LOG_ERR, LOC + "Failed to get painter");
             return;
         }
-        VERBOSE(VB_PLAYBACK, LOC + "Using main UI painter");
+        LOG(VB_PLAYBACK, LOG_INFO, LOC + "Using main UI painter");
     }
     gl_painter->SetSwapControl(false);
 }
@@ -396,11 +398,12 @@ bool VideoOutputOpenGL::CreateBuffers(void)
 
 bool VideoOutputOpenGL::CreatePauseFrame(void)
 {
-    av_pause_frame.height = vbuffers.GetScratchFrame()->height;
-    av_pause_frame.width  = vbuffers.GetScratchFrame()->width;
-    av_pause_frame.bpp    = vbuffers.GetScratchFrame()->bpp;
-    av_pause_frame.size   = vbuffers.GetScratchFrame()->size;
-    av_pause_frame.buf    = new unsigned char[av_pause_frame.size + 128];
+    init(&av_pause_frame, FMT_YV12,
+         new unsigned char[vbuffers.GetScratchFrame()->size + 128],
+         vbuffers.GetScratchFrame()->width,
+         vbuffers.GetScratchFrame()->height,
+         vbuffers.GetScratchFrame()->size);
+
     av_pause_frame.frameNumber = vbuffers.GetScratchFrame()->frameNumber;
 
     if (!av_pause_frame.buf)
@@ -424,7 +427,7 @@ void VideoOutputOpenGL::ProcessFrame(VideoFrame *frame, OSD *osd,
     {
         if (!gCoreContext->IsUIThread())
         {
-            VERBOSE(VB_IMPORTANT, LOC_ERR +
+            LOG(VB_GENERAL, LOG_ERR, LOC +
                 "ProcessFrame called from wrong thread");
         }
         QSize size = window.GetActualVideoDim();
@@ -435,7 +438,8 @@ void VideoOutputOpenGL::ProcessFrame(VideoFrame *frame, OSD *osd,
         gl_valid = true;
     }
 
-    bool sw_frame = codec_is_std(video_codec_id) && video_codec_id != kCodec_NONE;
+    bool sw_frame = codec_is_std(video_codec_id) &&
+                    video_codec_id != kCodec_NONE;
     bool deint_proc = m_deinterlacing && (m_deintFilter != NULL);
     OpenGLLocker ctx_lock(gl_context);
 
@@ -479,7 +483,6 @@ void VideoOutputOpenGL::ProcessFrame(VideoFrame *frame, OSD *osd,
 void VideoOutputOpenGL::PrepareFrame(VideoFrame *buffer, FrameScanType t,
                                      OSD *osd)
 {
-    (void)osd;
     if (!gl_context)
         return;
 
@@ -503,8 +506,13 @@ void VideoOutputOpenGL::PrepareFrame(VideoFrame *buffer, FrameScanType t,
         gl_context->SetBackground(0, 0, 0, 255);
     gl_context->ClearFramebuffer();
 
-    if (gl_context->IsShared() && GetMythMainWindow() && window.IsEmbedding())
-        GetMythMainWindow()->draw();
+    MythMainWindow *mwnd = GetMythMainWindow();
+    if (gl_context->IsShared() && mwnd && window.IsEmbedding())
+    {
+        if (mwnd->GetPaintWindow())
+            mwnd->GetPaintWindow()->setMask(QRegion());
+        mwnd->draw();
+    }
 
     if (gl_videochain)
     {
@@ -515,14 +523,17 @@ void VideoOutputOpenGL::PrepareFrame(VideoFrame *buffer, FrameScanType t,
                                     m_deinterlacing, framesPlayed);
     }
 
-    QMap<MythPlayer*,OpenGLVideo*>::iterator it = gl_pipchains.begin();
-    for (; it != gl_pipchains.end(); ++it)
+    if (gl_pipchains.size())
     {
-        if (gl_pip_ready[it.key()])
+        QMap<MythPlayer*,OpenGLVideo*>::iterator it = gl_pipchains.begin();
+        for (; it != gl_pipchains.end(); ++it)
         {
-            bool active = gl_pipchain_active == *it;
-            (*it)->PrepareFrame(buffer->top_field_first, t,
-                                m_deinterlacing, framesPlayed, active);
+            if (gl_pip_ready[it.key()])
+            {
+                bool active = gl_pipchain_active == *it;
+                (*it)->PrepareFrame(buffer->top_field_first, t,
+                                    m_deinterlacing, framesPlayed, active);
+            }
         }
     }
 
@@ -543,7 +554,7 @@ void VideoOutputOpenGL::Show(FrameScanType scan)
     QMutexLocker locker(&gl_context_lock);
     if (IsErrored())
     {
-        VERBOSE(VB_IMPORTANT, LOC_ERR + "IsErrored() is true in Show()");
+        LOG(VB_GENERAL, LOG_ERR, LOC + "IsErrored() is true in Show()");
         return;
     }
 
@@ -577,6 +588,12 @@ void VideoOutputOpenGL::MoveResize(void)
 {
     QMutexLocker locker(&gl_context_lock);
     VideoOutput::MoveResize();
+    if (gl_videochain)
+    {
+        gl_videochain->SetVideoRect(vsz_enabled ? vsz_desired_display_rect :
+                                                  window.GetDisplayVideoRect(),
+                                    window.GetVideoRect());
+    }
 }
 
 void VideoOutputOpenGL::UpdatePauseFrame(void)
@@ -645,6 +662,7 @@ bool VideoOutputOpenGL::SetupDeinterlace(
         m_deintFilter = NULL;
     }
 
+    MoveResize();
     m_deinterlacing = interlaced;
 
     if (m_deinterlacing && !m_deintfiltername.isEmpty())
@@ -653,17 +671,17 @@ bool VideoOutputOpenGL::SetupDeinterlace(
         {
             if (!gl_videochain->AddDeinterlacer(m_deintfiltername))
             {
-                VERBOSE(VB_IMPORTANT, LOC +
-                        QString("Couldn't load deinterlace filter %1")
+                LOG(VB_GENERAL, LOG_ERR, LOC +
+                    QString("Couldn't load deinterlace filter %1")
                         .arg(m_deintfiltername));
                 m_deinterlacing = false;
                 m_deintfiltername = "";
             }
             else
             {
-                VERBOSE(VB_PLAYBACK, LOC +
-                        QString("Using deinterlace method %1")
-                   .arg(m_deintfiltername));
+                LOG(VB_PLAYBACK, LOG_INFO, LOC +
+                    QString("Using deinterlace method %1")
+                        .arg(m_deintfiltername));
             }
         }
     }
@@ -701,8 +719,8 @@ bool VideoOutputOpenGL::SetDeinterlacingEnabled(bool enable)
         }
     }
 
-    if (gl_videochain)
-        gl_videochain->SetDeinterlacing(enable);
+    MoveResize();
+    gl_videochain->SetDeinterlacing(enable);
 
     m_deinterlacing = enable;
 
@@ -746,7 +764,7 @@ void VideoOutputOpenGL::ShowPIP(VideoFrame  *frame,
     OpenGLVideo *gl_pipchain = gl_pipchains[pipplayer];
     if (!gl_pipchain)
     {
-        VERBOSE(VB_PLAYBACK, LOC + "Initialise PiP.");
+        LOG(VB_PLAYBACK, LOG_INFO, LOC + "Initialise PiP.");
         gl_pipchains[pipplayer] = gl_pipchain = new OpenGLVideo();
         bool success = gl_pipchain->Init(gl_context, &videoColourSpace,
                      pipVideoDim, pipVideoDim,
@@ -767,7 +785,7 @@ void VideoOutputOpenGL::ShowPIP(VideoFrame  *frame,
     if ((uint)current.width()  != pipVideoWidth ||
         (uint)current.height() != pipVideoHeight)
     {
-        VERBOSE(VB_PLAYBACK, LOC + "Re-initialise PiP.");
+        LOG(VB_PLAYBACK, LOG_INFO, LOC + "Re-initialise PiP.");
         delete gl_pipchain;
         gl_pipchains[pipplayer] = gl_pipchain = new OpenGLVideo();
         bool success = gl_pipchain->Init(

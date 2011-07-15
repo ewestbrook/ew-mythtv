@@ -1,6 +1,6 @@
 #include <QFontMetrics>
 
-#include "mythverbose.h"
+#include "mythlogging.h"
 #include "mythfontproperties.h"
 #include "mythuitext.h"
 #include "mythuishape.h"
@@ -75,11 +75,11 @@ bool SubtitleScreen::Create(void)
     m_608reader = m_player->GetCC608Reader();
     m_708reader = m_player->GetCC708Reader();
     if (!m_subreader)
-        VERBOSE(VB_IMPORTANT, LOC_WARN + "Failed to get subtitle reader.");
+        LOG(VB_GENERAL, LOG_WARNING, LOC + "Failed to get subtitle reader.");
     if (!m_608reader)
-        VERBOSE(VB_IMPORTANT, LOC_WARN + "Failed to get CEA-608 reader.");
+        LOG(VB_GENERAL, LOG_WARNING, LOC + "Failed to get CEA-608 reader.");
     if (!m_708reader)
-        VERBOSE(VB_IMPORTANT, LOC_WARN + "Failed to get CEA-708 reader.");
+        LOG(VB_GENERAL, LOG_WARNING, LOC + "Failed to get CEA-708 reader.");
     m_useBackground = (bool)gCoreContext->GetNumSetting("CCBackground", 0);
     m_textFontZoom  = gCoreContext->GetNumSetting("OSDCC708TextZoom", 100);
     return true;
@@ -300,10 +300,10 @@ void SubtitleScreen::DisplayAVSubtitles(void)
                 }
                 if (uiimage)
                 {
-                    VERBOSE(VB_PLAYBACK, LOC +
+                    LOG(VB_PLAYBACK, LOG_INFO, LOC +
                         QString("Display AV sub for %1 ms").arg(displayfor));
                     if (late > 50)
-                        VERBOSE(VB_PLAYBACK, LOC +
+                        LOG(VB_PLAYBACK, LOG_INFO, LOC +
                             QString("AV Sub was %1 ms late").arg(late));
                 }
             }
@@ -501,13 +501,13 @@ void SubtitleScreen::DrawTextSubtitles(QStringList &wrappedsubs,
         if (text)
             text->SetJustification(Qt::AlignCenter);
         y += height;
-        VERBOSE(VB_PLAYBACK, LOC + subtitle);
+        LOG(VB_PLAYBACK, LOG_INFO, LOC + subtitle);
         m_refreshArea = true;
 
         if (duration > 0)
         {
             m_expireTimes.insert(text, start + duration);
-            VERBOSE(VB_PLAYBACK, LOC +
+            LOG(VB_PLAYBACK, LOG_INFO, LOC +
                 QString("Display text subtitle for %1 ms").arg(duration));
         }
     }
@@ -533,47 +533,43 @@ void SubtitleScreen::DisplayDVDButton(AVSubtitle* dvdButton, QRect &buttonPos)
     uint h = hl_button->h;
     uint w = hl_button->w;
     QRect rect = QRect(hl_button->x, hl_button->y, w, h);
-    QImage bg_image(hl_button->pict.data[0], w, h, QImage::Format_Indexed8);
+    QImage bg_image(hl_button->pict.data[0], w, h, w, QImage::Format_Indexed8);
     uint32_t *bgpalette = (uint32_t *)(hl_button->pict.data[1]);
 
-    bool blank = true;
-    for (uint x = 0; (x < w) && bgpalette; x++)
-    {
-        for (uint y = 0; y < h; y++)
-        {
-            if (qAlpha(bgpalette[bg_image.pixelIndex(x, y)]) > 0)
-            {
-                blank = false;
-                break;
-            }
-        }
-    }
+    QVector<uint32_t> bg_palette(4);
+    for (int i = 0; i < 4; i++)
+        bg_palette[i] = bgpalette[i];
+    bg_image.setColorTable(bg_palette);
 
-    if (!blank)
-    {
-        QVector<unsigned int> bg_palette;
-        for (int i = 0; i < AVPALETTE_COUNT; i++)
-            bg_palette.push_back(bgpalette[i]);
-        bg_image.setColorTable(bg_palette);
-        bg_image = bg_image.convertToFormat(QImage::Format_ARGB32);
-        AddScaledImage(bg_image, rect);
-        VERBOSE(VB_PLAYBACK, LOC + "Added DVD button background");
-    }
-
-    QImage fg_image = bg_image.copy(buttonPos);
-    QVector<unsigned int> fg_palette;
+    // copy button region of background image
+    const QRect fg_rect(buttonPos.translated(-hl_button->x, -hl_button->y));
+    QImage fg_image = bg_image.copy(fg_rect);
+    QVector<uint32_t> fg_palette(4);
     uint32_t *fgpalette = (uint32_t *)(dvdButton->rects[1]->pict.data[1]);
     if (fgpalette)
     {
-        for (int i = 0; i < AVPALETTE_COUNT; i++)
-            fg_palette.push_back(fgpalette[i]);
+        for (int i = 0; i < 4; i++)
+            fg_palette[i] = fgpalette[i];
         fg_image.setColorTable(fg_palette);
     }
 
-    // scale highlight image to match OSD size, if required
-    QRect button = buttonPos.adjusted(0, 2, 0, 0);
+    bg_image = bg_image.convertToFormat(QImage::Format_ARGB32);
     fg_image = fg_image.convertToFormat(QImage::Format_ARGB32);
-    AddScaledImage(fg_image, button);
+
+    // set pixel of highlight area to highlight color
+    for (int x=fg_rect.x(); x < fg_rect.x()+fg_rect.width(); ++x)
+    {
+        if ((x < 0) || (x > hl_button->w))
+            continue;
+        for (int y=fg_rect.y(); y < fg_rect.y()+fg_rect.height(); ++y)
+        {
+            if ((y < 0) || (y > hl_button->h))
+                continue;
+            bg_image.setPixel(x, y, fg_image.pixel(x-fg_rect.x(),y-fg_rect.y()));
+        }
+    }
+
+    AddScaledImage(bg_image, rect);
 }
 
 void SubtitleScreen::DisplayCC608Subtitles(void)
@@ -655,7 +651,7 @@ void SubtitleScreen::DisplayCC608Subtitles(void)
             if (text)
                 text->SetJustification(Qt::AlignLeft);
             m_refreshArea = true;
-            VERBOSE(VB_VBI, QString("x %1 y %2 String: '%3'")
+            LOG(VB_VBI, LOG_INFO, QString("x %1 y %2 String: '%3'")
                                 .arg(cc->x).arg(cc->y).arg(cc->text));
         }
     }
@@ -725,10 +721,11 @@ void SubtitleScreen::Clear708Cache(int num)
 void SubtitleScreen::Display708Strings(const CC708Window &win, int num,
                                        float aspect, vector<CC708String*> &list)
 {
-    VERBOSE(VB_VBI, LOC + QString("Display Win %1, Anchor_id %2, x_anch %3, "
-                                  "y_anch %4, relative %5")
-                .arg(num).arg(win.anchor_point).arg(win.anchor_horizontal)
-                .arg(win.anchor_vertical).arg(win.relative_pos));
+    LOG(VB_VBI, LOG_INFO,LOC +
+        QString("Display Win %1, Anchor_id %2, x_anch %3, y_anch %4, "
+                "relative %5")
+            .arg(num).arg(win.anchor_point).arg(win.anchor_horizontal)
+            .arg(win.anchor_vertical).arg(win.relative_pos));
 
     bool display = false;
     MythFontProperties *mythfont;
@@ -902,7 +899,7 @@ void SubtitleScreen::Display708Strings(const CC708Window &win, int num,
 
             x += trailing;
             first = false;
-            VERBOSE(VB_VBI, QString("Win %1 row %2 String '%3'")
+            LOG(VB_VBI, LOG_INFO, QString("Win %1 row %2 String '%3'")
                 .arg(num).arg(row).arg(list[i]->str));
         }
         y += maxheight;
@@ -968,7 +965,7 @@ bool SubtitleScreen::InitialiseFont(int fontStretch)
         return false;
 
     initialised = true;
-    VERBOSE(VB_PLAYBACK, LOC + QString("Loaded main subtitle font '%1'")
+    LOG(VB_PLAYBACK, LOG_INFO, LOC + QString("Loaded main subtitle font '%1'")
         .arg(font));
     return true;
 }
@@ -983,7 +980,7 @@ bool SubtitleScreen::Initialise708Fonts(int fontStretch)
         return true;
     }
 
-    VERBOSE(VB_IMPORTANT, "Initialise708Fonts()");
+    LOG(VB_GENERAL, LOG_INFO, "Initialise708Fonts()");
 
     QStringList fonts;
     fonts.append("Droid Sans Mono"); // default
@@ -1010,7 +1007,8 @@ bool SubtitleScreen::Initialise708Fonts(int fontStretch)
         }
     }
     initialised = count > 0;
-    VERBOSE(VB_PLAYBACK, LOC + QString("Loaded %1 CEA-708 fonts").arg(count));
+    LOG(VB_PLAYBACK, LOG_INFO, LOC +
+        QString("Loaded %1 CEA-708 fonts").arg(count));
     return initialised;
 }
 
@@ -1060,25 +1058,32 @@ static void myth_libass_log(int level, const char *fmt, va_list vl, void *ctx)
     static QString full_line("libass:");
     static const int msg_len = 255;
     static QMutex string_lock;
-    uint verbose_level = 0;
+    uint64_t verbose_mask = VB_GENERAL;
+    LogLevel_t verbose_level = LOG_INFO;
 
     switch (level)
     {
         case 0: //MSGL_FATAL
-            verbose_level = VB_IMPORTANT;
+            verbose_level = LOG_EMERG;
             break;
         case 1: //MSGL_ERR
+            verbose_level = LOG_ERR;
+            break;
         case 2: //MSGL_WARN
+            verbose_level = LOG_WARNING;
+            break;
         case 4: //MSGL_INFO
-            verbose_level = VB_GENERAL;
+            verbose_level = LOG_INFO;
             break;
         case 6: //MSGL_V
         case 7: //MSGL_DBG2
+            verbose_level = LOG_DEBUG;
+            break;
         default:
             return;
     }
 
-    if (!VERBOSE_LEVEL_CHECK(verbose_level))
+    if (!VERBOSE_LEVEL_CHECK(verbose_mask, verbose_level))
         return;
 
     string_lock.lock();
@@ -1088,7 +1093,8 @@ static void myth_libass_log(int level, const char *fmt, va_list vl, void *ctx)
     // check for truncated messages and fix them
     if (bytes > msg_len)
     {
-        VERBOSE(VB_IMPORTANT, QString("libASS log output truncated %1 of %2 bytes written")
+        LOG(VB_GENERAL, LOG_ERR,
+            QString("libASS log output truncated %1 of %2 bytes written")
                 .arg(msg_len).arg(bytes));
         str[msg_len-1] = '\n';
     }
@@ -1096,8 +1102,7 @@ static void myth_libass_log(int level, const char *fmt, va_list vl, void *ctx)
     full_line += QString(str);
     if (full_line.endsWith("\n"))
     {
-        full_line.truncate(full_line.length() - 1);
-        VERBOSE(verbose_level, full_line);
+        LOG(verbose_mask, verbose_level, full_line.trimmed());
         full_line.truncate(0);
     }
     string_lock.unlock();
@@ -1116,7 +1121,7 @@ bool SubtitleScreen::InitialiseAssLibrary(void)
 
         ass_set_message_cb(m_assLibrary, myth_libass_log, NULL);
         ass_set_extract_fonts(m_assLibrary, true);
-        VERBOSE(VB_PLAYBACK, LOC + QString("Initialised libass object."));
+        LOG(VB_PLAYBACK, LOG_INFO, LOC + "Initialised libass object.");
     }
 
     LoadAssFonts();
@@ -1129,7 +1134,7 @@ bool SubtitleScreen::InitialiseAssLibrary(void)
 
         ass_set_fonts(m_assRenderer, NULL, "sans-serif", 1, NULL, 1);
         ass_set_hinting(m_assRenderer, ASS_HINTING_LIGHT);
-        VERBOSE(VB_PLAYBACK, LOC + QString("Initialised libass renderer."));
+        LOG(VB_PLAYBACK, LOG_INFO, LOC + "Initialised libass renderer.");
     }
 
     return true;
@@ -1154,7 +1159,7 @@ void SubtitleScreen::LoadAssFonts(void)
         QByteArray font;
         m_player->GetDecoder()->GetAttachmentData(i, filename, font);
         ass_add_font(m_assLibrary, filename.data(), font.data(), font.size());
-        VERBOSE(VB_PLAYBACK, LOC + QString("Retrieved font '%1'")
+        LOG(VB_PLAYBACK, LOG_INFO, LOC + QString("Retrieved font '%1'")
             .arg(filename.constData()));
         m_assFontCount++;
     }

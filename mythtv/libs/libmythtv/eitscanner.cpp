@@ -15,7 +15,6 @@
 #include "scheduledrecording.h"
 #include "util.h"
 #include "mythdb.h"
-#include "mythverbose.h"
 #include "mythlogging.h"
 
 #define LOC QString("EITScanner: ")
@@ -121,7 +120,8 @@ void EITScanner::RunEventLoop(void)
         // seen any in a while, tell scheduler to run.
         if (eitCount && (t.elapsed() > 60 * 1000))
         {
-            VERBOSE(VB_EIT, LOC_ID + QString("Added %1 EIT Events").arg(eitCount));
+            LOG(VB_EIT, LOG_INFO,
+                LOC_ID + QString("Added %1 EIT Events").arg(eitCount));
             eitCount = 0;
             RescheduleRecordings();
         }
@@ -131,7 +131,8 @@ void EITScanner::RunEventLoop(void)
             // if there have been any new events, tell scheduler to run.
             if (eitCount)
             {
-                VERBOSE(VB_EIT, LOC_ID + QString("Added %1 EIT Events").arg(eitCount));
+                LOG(VB_EIT, LOG_INFO,
+                    LOC_ID + QString("Added %1 EIT Events").arg(eitCount));
                 eitCount = 0;
                 RescheduleRecordings();
             }
@@ -143,9 +144,9 @@ void EITScanner::RunEventLoop(void)
             {
                 eitHelper->WriteEITCache();
                 rec->SetChannel(*activeScanNextChan, TVRec::kFlagEITScan);
-                VERBOSE(VB_EIT, LOC_ID +
-                        QString("Now looking for EIT data on "
-                                "multiplex of channel %1")
+                LOG(VB_EIT, LOG_INFO,
+                    LOC_ID + QString("Now looking for EIT data on "
+                                     "multiplex of channel %1")
                         .arg(*activeScanNextChan));
             }
 
@@ -177,7 +178,7 @@ void EITScanner::RescheduleRecordings(void)
 
     if (resched_next_time > QDateTime::currentDateTime())
     {
-        VERBOSE(VB_EIT, LOC + "Rate limiting reschedules..");
+        LOG(VB_EIT, LOG_INFO, LOC + "Rate limiting reschedules..");
         resched_lock.unlock();
         return;
     }
@@ -206,7 +207,7 @@ void EITScanner::StartPassiveScan(ChannelBase *_channel,
     eitSource->SetEITHelper(eitHelper);
     eitSource->SetEITRate(1.0f);
 
-    VERBOSE(VB_EIT, LOC_ID + "Started passive scan.");
+    LOG(VB_EIT, LOG_INFO, LOC_ID + "Started passive scan.");
 }
 
 /** \fn EITScanner::StopPassiveScan(void)
@@ -263,8 +264,8 @@ void EITScanner::StartActiveScan(TVRec *_rec, uint max_seconds_per_source)
         activeScanNextChan = activeScanChannels.begin();
     }
 
-    VERBOSE(VB_EIT, LOC_ID +
-            QString("StartActiveScan called with %1 multiplexes")
+    LOG(VB_EIT, LOG_INFO, LOC_ID +
+        QString("StartActiveScan called with %1 multiplexes")
             .arg(activeScanChannels.size()));
 
     // Start at a random channel. This is so that multiple cards with
