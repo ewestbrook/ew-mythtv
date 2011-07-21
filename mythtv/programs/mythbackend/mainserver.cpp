@@ -1486,6 +1486,15 @@ void MainServer::HandleAnnounce(QStringList &slist, QStringList commands,
         else
             filename = LocalFilePath(qurl, wantgroup);
 
+        if (filename.isEmpty())
+        {
+            LOG(VB_GENERAL, LOG_ERR, "Empty filename, cowardly aborting!");
+            errlist << "filetransfer_filename_empty";
+            socket->writeStringList(errlist);
+            return;
+        }
+            
+
         QFileInfo finfo(filename);
         if (finfo.isDir())
         {
@@ -4923,8 +4932,8 @@ void MainServer::HandleFileTransferQuery(QStringList &slist,
                                .arg(recnum);
         }
 
-        SendResponse(pbssock, retlist);
         sockListLock.unlock();
+        SendResponse(pbssock, retlist);
         return;
     }
 
