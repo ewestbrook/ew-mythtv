@@ -159,7 +159,7 @@ HEADERS += previewgenerator.h       previewgeneratorqueue.h
 HEADERS += transporteditor.h        listingsources.h
 HEADERS += myth_imgconvert.h
 HEADERS += channelgroup.h           channelgroupsettings.h
-HEADERS += recordingrule.h          programdetail.h
+HEADERS += recordingrule.h
 HEADERS += mythsystemevent.h
 HEADERS += avfringbuffer.h          ThreadedFileWriter.h
 HEADERS += ringbuffer.h             fileringbuffer.h
@@ -187,7 +187,7 @@ SOURCES += previewgenerator.cpp     previewgeneratorqueue.cpp
 SOURCES += transporteditor.cpp
 SOURCES += channelgroup.cpp         channelgroupsettings.cpp
 SOURCES += myth_imgconvert.cpp
-SOURCES += recordingrule.cpp        programdetail.cpp
+SOURCES += recordingrule.cpp
 SOURCES += mythsystemevent.cpp
 SOURCES += avfringbuffer.cpp        ThreadedFileWriter.cpp
 SOURCES += ringbuffer.cpp           fileringBuffer.cpp
@@ -263,6 +263,7 @@ using_frontend {
     # Video playback
     HEADERS += tv_play.h                mythplayer.h
     HEADERS += mythdvdplayer.h          audioplayer.h
+    HEADERS += mythccextractorplayer.h  teletextextractorreader.h
     HEADERS += playercontext.h
     HEADERS += tv_play_win.h            deletemap.h
     HEADERS += mythcommflagplayer.h     commbreakmap.h
@@ -270,6 +271,7 @@ using_frontend {
     HEADERS += mythiowrapper.h          tvbrowsehelper.h
     SOURCES += tv_play.cpp              mythplayer.cpp
     SOURCES += mythdvdplayer.cpp        audioplayer.cpp
+    SOURCES += mythccextractorplayer.cpp teletextextractorreader.cpp
     SOURCES += playercontext.cpp
     SOURCES += tv_play_win.cpp          deletemap.cpp
     SOURCES += mythcommflagplayer.cpp   commbreakmap.cpp
