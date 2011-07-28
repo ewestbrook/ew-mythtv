@@ -100,7 +100,7 @@ bool NetSearch::Create()
     connect(m_siteList, SIGNAL(itemClicked(MythUIButtonListItem *)),
                        SLOT(doSearch(void)));
     connect(m_searchResultList, SIGNAL(itemClicked(MythUIButtonListItem *)),
-                       SLOT(showWebVideo(void)));
+                       SLOT(streamWebVideo(void)));
     connect(m_searchResultList, SIGNAL(itemSelected(MythUIButtonListItem *)),
                        SLOT(slotItemChanged()));
 
@@ -235,6 +235,8 @@ void NetSearch::showMenu(void)
 
             if (item)
             {
+                if (item->GetDownloadable())
+                    menuPopup->AddButton(tr("Stream Video"), SLOT(streamWebVideo()));
                 menuPopup->AddButton(tr("Open Web Link"), SLOT(showWebVideo()));
 
                 filename = GetDownloadFilename(item->GetTitle(),
@@ -244,24 +246,23 @@ void NetSearch::showMenu(void)
                     exists = RemoteFile::Exists(filename);
                 else
                     exists = QFile::exists(filename);
-            }
 
-            if (item && item->GetDownloadable() &&
-                GetFocusWidget() == m_searchResultList)
-            {
-                if (exists)
-                    menuPopup->AddButton(tr("Play"), SLOT(doPlayVideo(filename)));
-                else
-                    menuPopup->AddButton(tr("Save This Video"), SLOT(doDownloadAndPlay()));
-            }
+                if (item->GetDownloadable() &&
+                    GetFocusWidget() == m_searchResultList)
+                {
+                    if (exists)
+                        menuPopup->AddButton(tr("Play"), SLOT(doPlayVideo(filename)));
+                    else
+                        menuPopup->AddButton(tr("Save This Video"), SLOT(doDownloadAndPlay()));
+                }
 
-            if (item && item->GetDownloadable() &&
-                GetFocusWidget() == m_searchResultList &&
-                exists)
-            {
-                menuPopup->AddButton(tr("Delete"), SLOT(slotDeleteVideo()));
+                if (item->GetDownloadable() &&
+                    GetFocusWidget() == m_searchResultList &&
+                    exists)
+                {
+                    menuPopup->AddButton(tr("Delete"), SLOT(slotDeleteVideo()));
+                }
             }
-
 
             if (m_pagenum > 1)
                 menuPopup->AddButton(tr("Previous Page"), SLOT(getLastResults()));
@@ -503,6 +504,26 @@ void NetSearch::populateResultList(ResultItem::resultList list)
         else
             delete item;
     }
+}
+
+void NetSearch::streamWebVideo()
+{
+    ResultItem *item =
+        qVariantValue<ResultItem *>(m_searchResultList->GetDataValue());
+
+    if (!item)
+        return;
+
+    if (!item->GetDownloadable())
+    {
+        showWebVideo();
+        return;
+    }
+
+    GetMythMainWindow()->HandleMedia("Internal", item->GetMediaURL(),
+           item->GetDescription(), item->GetTitle(), item->GetSubtitle(), QString(),
+           item->GetSeason(), item->GetEpisode(), QString(), item->GetTime().toInt(),
+           item->GetDate().toString("yyyy"));
 }
 
 void NetSearch::showWebVideo()
