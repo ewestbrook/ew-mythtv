@@ -220,8 +220,20 @@ void cleanup(void)
     signal(SIGUSR1, SIG_DFL);
 #endif
 
-    delete gCoreContext->GetScheduler();
-    gCoreContext->SetScheduler(NULL);
+    delete housekeeping;
+    housekeeping = NULL;
+
+    if (gCoreContext)
+    {
+        delete gCoreContext->GetScheduler();
+        gCoreContext->SetScheduler(NULL);
+    }
+
+    delete expirer;
+    expirer = NULL;
+
+    delete jobqueue;
+    jobqueue = NULL;
 
     delete g_pUPnp;
     g_pUPnp = NULL;
@@ -627,8 +639,6 @@ int run_backend(MythBackendCommandLineParser &cmdline)
 
     delete sysEventHandler;
     delete mainServer;
-
-    cleanup();
 
     return exitCode;
 }
