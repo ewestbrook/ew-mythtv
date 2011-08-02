@@ -113,7 +113,7 @@ SSDP::SSDP() :
 
 SSDP::~SSDP()
 {
-    LOG(VB_UPNP, LOG_CRIT, "Shutting Down SSDP Thread..." );
+    LOG(VB_UPNP, LOG_NOTICE, "Shutting Down SSDP Thread..." );
 
     DisableNotifications();
 
@@ -136,6 +136,11 @@ SSDP::~SSDP()
 
     LOG(VB_UPNP, LOG_INFO, "SSDP Thread Terminated." );
 
+}
+
+void SSDP::RequestTerminate(void)
+{
+    m_bTermRequested = true;
 }
 
 /////////////////////////////////////////////////////////////////////////////
