@@ -3,7 +3,6 @@
 #include <QWaitCondition>
 #include <QList>
 #include <QQueue>
-#include <QThread>
 #include <QHash>
 #include <QCoreApplication>
 #include <QFileInfo>
@@ -64,7 +63,7 @@ QHash<uint64_t, char *> logThreadHash;
 QMutex                   logThreadTidMutex;
 QHash<uint64_t, int64_t> logThreadTidHash;
 
-LoggerThread            logThread;
+LoggerThread           *logThread = NULL;
 bool                    logThreadFinished = false;
 bool                    debugRegistration = false;
 
@@ -423,7 +422,7 @@ bool DatabaseLogger::logqmsg(LoggingItem_t *item)
         m_host = strdup((char *)gCoreContext->GetHostName()
                         .toLocal8Bit().constData());
 
-    MSqlQuery   query(MSqlQuery::LogCon());
+    MSqlQuery   query(MSqlQuery::InitCon());
     query.prepare( m_query );
     query.bindValue(":HOST",        m_host);
     query.bindValue(":APPLICATION", m_application);
@@ -446,6 +445,7 @@ bool DatabaseLogger::logqmsg(LoggingItem_t *item)
 }
 
 DBLoggerThread::DBLoggerThread(DatabaseLogger *logger) :
+    MThread("DBLogger"),
     m_logger(logger), m_queue(new QQueue<LoggingItem_t *>),
     m_wait(new QWaitCondition()), aborted(false)
 {
@@ -465,7 +465,8 @@ DBLoggerThread::~DBLoggerThread()
 
 void DBLoggerThread::run(void)
 {
-    threadRegister("DBLogger");
+    RunProlog();
+
     LoggingItem_t *item;
 
     QMutexLocker qLock(&m_queueMutex);
@@ -502,8 +503,7 @@ void DBLoggerThread::run(void)
         qLock.relock();
     }
 
-    MSqlQuery::CloseLogCon();
-    threadDeregister();
+    RunEpilog();
 }
 
 void DBLoggerThread::stop(void)
@@ -539,7 +539,7 @@ bool DatabaseLogger::isDatabaseReady()
 bool DatabaseLogger::tableExists(const QString &table)
 {
     bool result = false;
-    MSqlQuery query(MSqlQuery::LogCon());
+    MSqlQuery query(MSqlQuery::InitCon());
     if (query.isConnected())
     {
         QString sql = "SELECT INFORMATION_SCHEMA.TABLES.TABLE_NAME "
@@ -622,6 +622,7 @@ void setThreadTid( LoggingItem_t *item )
 
 
 LoggerThread::LoggerThread() :
+    MThread("Logger"),
     m_wait(new QWaitCondition()), aborted(false)
 {
     char *debug = getenv("VERBOSE_THREADS");
@@ -652,7 +653,7 @@ LoggerThread::~LoggerThread()
 
 void LoggerThread::run(void)
 {
-    threadRegister("Logger");
+    RunProlog();
     LoggingItem_t *item;
 
     logThreadFinished = false;
@@ -750,6 +751,7 @@ void LoggerThread::run(void)
     }
 
     logThreadFinished = true;
+    RunEpilog();
 }
 
 void LoggerThread::stop(void)
@@ -924,7 +926,10 @@ void logStart(QString logfile, int progress, int quiet, int facility,
 {
     LoggerBase *logger;
 
-    if (logThread.isRunning())
+    if (!logThread)
+        logThread = new LoggerThread();
+
+    if (logThread->isRunning())
         return;
  
     logLevel = level;
@@ -978,13 +983,16 @@ void logStart(QString logfile, int progress, int quiet, int facility,
 
     (void)logger;
 
-    logThread.start();
+    logThread->start();
 }
 
 void logStop(void)
 {
-    logThread.stop();
-    logThread.wait();
+    if (logThread)
+    {
+        logThread->stop();
+        logThread->wait();
+    }
 
 #ifndef _WIN32
     /* Tear down SIGHUP */
