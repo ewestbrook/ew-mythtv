@@ -560,13 +560,10 @@ MSqlQueryInfo MSqlQuery::InitCon(ConnectionReuse _reuse)
         return qi;
     }
 
-    if (db)
-    {
-        qi.db = db;
-        qi.qsqldb = db->db();
+    qi.db = db;
+    qi.qsqldb = db->db();
 
-        db->KickDatabase();
-    }
+    db->KickDatabase();
 
     return qi;
 }
@@ -696,7 +693,7 @@ bool MSqlQuery::exec()
         // out
         if (!str.startsWith("INSERT INTO logging "))
         {
-       	    // Sadly, neither executedQuery() nor lastQuery() display
+            // Sadly, neither executedQuery() nor lastQuery() display
             // the values in bound queries against a MySQL5 database.
             // So, replace the named placeholders with their values.
 
