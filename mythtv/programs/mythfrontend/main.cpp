@@ -1272,8 +1272,6 @@ static void setDebugShowNames(void)
         GetMythMainWindow()->GetMainStack()->GetTopScreen()->SetRedraw();
 }
 
-// If adding a new jump point, remember to also add a line to clear it in
-// ReloadJumpPoints(), below
 static void InitJumpPoints(void)
 {
      REG_JUMP(QT_TRANSLATE_NOOP("MythControls", "Reload Theme"),
